@@ -46,3 +46,6 @@ test_output.mp4
 
 # Logs
 *.log
+
+# Non-essential files (kept locally for reference)
+other_stuff/
