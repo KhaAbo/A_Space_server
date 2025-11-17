@@ -1,0 +1,2 @@
+gaze-estimation-testing-main/gaze-estimation/weights/*.pt filter=lfs diff=lfs merge=lfs -text
+gaze-estimation-testing-main/gaze-estimation/weights/*.onnx filter=lfs diff=lfs merge=lfs -text
