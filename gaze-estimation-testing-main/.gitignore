@@ -1,0 +1,66 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Video files (large)
+input/*.mp4
+input/*.mov
+input/*.MOV
+input/*.avi
+output/*.mp4
+output/*.mov
+output/*.avi
+results/*.mp4
+results/*.mov
+results/*.avi
+
+# Keep example structure but ignore content
+!input/.gitkeep
+!output/.gitkeep
+!results/.gitkeep
+
+# Model weights (large, can be downloaded separately)
+*.pt
+*.pth
+*.onnx
+gaze-estimation/weights/*.pt
+gaze-estimation/weights/*.pth
+gaze-estimation/weights/*.onnx
+
+# Dataset folders (very large)
+gaze-estimation/data/Gaze360/
+gaze-estimation/data/MPIIFaceGaze/
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+demo.ipynb

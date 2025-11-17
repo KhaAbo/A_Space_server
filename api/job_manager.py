@@ -1,0 +1,107 @@
+import json
+import shutil
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, Optional
+from api.models import JobStatus, JobInfo
+from api.config import JOBS_FILE, UPLOADS_DIR, OUTPUTS_DIR, FILE_RETENTION_HOURS
+
+
+class JobManager:
+    def __init__(self):
+        self.jobs: Dict[str, dict] = {}
+        self.load_jobs()
+    
+    def load_jobs(self):
+        """Load jobs from JSON file if it exists."""
+        if JOBS_FILE.exists():
+            try:
+                with open(JOBS_FILE, 'r') as f:
+                    data = json.load(f)
+                    self.jobs = data
+            except Exception as e:
+                print(f"Error loading jobs: {e}")
+                self.jobs = {}
+        else:
+            self.jobs = {}
+    
+    def save_jobs(self):
+        """Save jobs to JSON file."""
+        try:
+            with open(JOBS_FILE, 'w') as f:
+                json.dump(self.jobs, f, indent=2, default=str)
+        except Exception as e:
+            print(f"Error saving jobs: {e}")
+    
+    def create_job(self, job_id: str, filename: str, model: str) -> dict:
+        """Create a new job."""
+        job = {
+            "job_id": job_id,
+            "status": JobStatus.PENDING,
+            "filename": filename,
+            "model": model,
+            "created_at": datetime.now().isoformat(),
+            "started_at": None,
+            "completed_at": None,
+            "error": None
+        }
+        self.jobs[job_id] = job
+        self.save_jobs()
+        return job
+    
+    def get_job(self, job_id: str) -> Optional[dict]:
+        """Get job by ID."""
+        return self.jobs.get(job_id)
+    
+    def update_job_status(self, job_id: str, status: JobStatus, error: Optional[str] = None):
+        """Update job status."""
+        if job_id not in self.jobs:
+            return
+        
+        self.jobs[job_id]["status"] = status
+        
+        if status == JobStatus.PROCESSING:
+            self.jobs[job_id]["started_at"] = datetime.now().isoformat()
+        elif status in [JobStatus.COMPLETED, JobStatus.FAILED]:
+            self.jobs[job_id]["completed_at"] = datetime.now().isoformat()
+        
+        if error:
+            self.jobs[job_id]["error"] = error
+        
+        self.save_jobs()
+    
+    def delete_job(self, job_id: str):
+        """Delete job and associated files."""
+        if job_id in self.jobs:
+            # Delete files
+            upload_dir = UPLOADS_DIR / job_id
+            output_dir = OUTPUTS_DIR / job_id
+            
+            if upload_dir.exists():
+                shutil.rmtree(upload_dir, ignore_errors=True)
+            if output_dir.exists():
+                shutil.rmtree(output_dir, ignore_errors=True)
+            
+            # Delete job record
+            del self.jobs[job_id]
+            self.save_jobs()
+    
+    def cleanup_old_jobs(self):
+        """Remove jobs and files older than FILE_RETENTION_HOURS."""
+        cutoff_time = datetime.now() - timedelta(hours=FILE_RETENTION_HOURS)
+        jobs_to_delete = []
+        
+        for job_id, job in self.jobs.items():
+            created_at = datetime.fromisoformat(job["created_at"])
+            if created_at < cutoff_time:
+                jobs_to_delete.append(job_id)
+        
+        for job_id in jobs_to_delete:
+            print(f"Cleaning up old job: {job_id}")
+            self.delete_job(job_id)
+        
+        return len(jobs_to_delete)
+    
+    def list_jobs(self) -> list:
+        """List all jobs."""
+        return list(self.jobs.values())
