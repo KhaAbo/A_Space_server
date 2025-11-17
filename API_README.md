@@ -139,6 +139,37 @@ curl http://localhost:8000/api/jobs/{job_id}
 
 ---
 
+### `GET /api/jobs/all`
+
+Get all jobs.
+
+**Response:** Array of job objects
+
+[
+{
+"job_id": "123e4567-e89b-12d3-a456-426614174000",
+"status": "processing",
+"filename": "video.mp4",
+"model": "resnet50",
+"created_at": "2025-11-17T10:30:00",
+"started_at": "2025-11-17T10:30:05",
+"completed_at": null,
+"error": null
+},
+{
+"job_id": "456e7890-e89b-12d3-a456-426614174001",
+"status": "completed",
+"filename": "video2.mp4",
+"model": "resnet50",
+"created_at": "2025-11-17T09:00:00",
+"started_at": "2025-11-17T09:00:05",
+"completed_at": "2025-11-17T09:05:30",
+"error": null
+}
+]**Example:**
+
+## curl http://localhost:8000/api/jobs/all
+
 ### `GET /api/download/{job_id}`
 
 Download the processed video (only available when status is `completed`).

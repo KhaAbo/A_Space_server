@@ -179,6 +179,33 @@ async def upload_video(
     )
 
 
+@app.get("/api/jobs/all", response_model=list[JobInfo])
+async def get_all_jobs():
+    """
+    Get all jobs.
+    
+    Returns a list of all jobs with their information including status, timestamps, and errors if failed.
+    """
+    jobs = job_manager.list_jobs()
+    
+    # Parse datetime strings for each job
+    job_infos = []
+    for job in jobs:
+        job_info = JobInfo(
+            job_id=job["job_id"],
+            status=JobStatus(job["status"]),
+            filename=job["filename"],
+            model=job["model"],
+            created_at=datetime.fromisoformat(job["created_at"]),
+            started_at=datetime.fromisoformat(job["started_at"]) if job["started_at"] else None,
+            completed_at=datetime.fromisoformat(job["completed_at"]) if job["completed_at"] else None,
+            error=job.get("error")
+        )
+        job_infos.append(job_info)
+    
+    return job_infos
+
+
 @app.get("/api/jobs/{job_id}", response_model=JobInfo)
 async def get_job_status(job_id: str):
     """
