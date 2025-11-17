@@ -2,19 +2,45 @@
 
 FastAPI-based service for video gaze estimation using deep learning models.
 
-## Quick Start
+## 🐳 Quick Start with Docker (Recommended)
 
-1. Install dependencies:
+```bash
+# 1. Clone and navigate to the repository
+git clone https://github.com/KhaAbo/A_Space_server
+cd A_Space_server
 
-   pip install -r requirements-api.txt 2. Start the server:
-   bash start_api.sh
+# 2. Make sure Git LFS is installed and pull model weights
+git lfs install
+git lfs pull
 
-   # or on Windows: start_api.bat
+# 3. Start the API with Docker
+docker-compose up --build
 
-   3. Access the API:
+# 4. Access the API at http://localhost:8000
+```
 
-   - API: http://localhost:8000
-   - Docs: http://localhost:8000/docs
+That's it! The API is now running in a consistent environment. 🎉
+
+## 💻 Alternative: Local Setup
+
+**⚠️ Note:** For best compatibility, use **Python 3.10-3.13.2**. Python 3.13.5+ may have compatibility issues.
+
+```bash
+# 1. Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 2. Install dependencies
+pip install -r requirements-api.txt
+
+# 3. Start the server
+bash start_api.sh  # Windows: start_api.bat
+
+# 4. Access the API
+```
+
+- API: http://localhost:8000
+- Docs: http://localhost:8000/docs
 
 ## Documentation
 
@@ -32,9 +58,36 @@ FastAPI-based service for video gaze estimation using deep learning models.
 
 ## Requirements
 
-- Python 3.8+
+### For Docker (Recommended):
+- Docker and Docker Compose
+- Git LFS (for model weights)
+
+### For Local Setup:
+- Python 3.10-3.13.2 (⚠️ avoid Python 3.13.5+)
 - CUDA-capable GPU (optional, but recommended)
 - Model weights in `gaze-estimation-testing-main/gaze-estimation/weights/`
+
+## 🐋 Docker Commands
+
+```bash
+# Start the API
+docker-compose up
+
+# Start in detached mode (background)
+docker-compose up -d
+
+# Stop the API
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# Rebuild after code changes
+docker-compose up --build
+
+# Remove everything (including volumes)
+docker-compose down -v
+```
 
 ## License
 

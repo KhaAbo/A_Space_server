@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# Storage (will be mounted as volume)
+storage/uploads/*
+storage/outputs/*
+storage/jobs.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (not needed in container)
+*.md
+!requirements*.txt
+
+# Test files
+test_output.mp4
+other_stuff/
+
+# Scripts (not needed in container)
+start_api.sh
+start_api.bat
+
+# Model weights - will be mounted as volume, not copied into image
+gaze-estimation-testing-main/gaze-estimation/weights/*.pt
+gaze-estimation-testing-main/gaze-estimation/weights/*.onnx
+
+# Keep only essential files
+!api/
+!gaze-estimation-testing-main/
+!requirements-docker.txt
+!Dockerfile
+!docker-compose.yml
+
