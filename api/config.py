@@ -1,5 +1,13 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+# Look for .env file in the api directory first, then fall back to parent directory
+env_path = Path(__file__).parent / ".env"
+if not env_path.exists():
+    env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(env_path)
 
 # Base paths
 BASE_DIR = Path(__file__).parent.parent
@@ -29,6 +37,10 @@ ANGLE = 180
 # Cleanup settings
 CLEANUP_INTERVAL_HOURS = 1
 FILE_RETENTION_HOURS = 24
+
+# Discord webhook settings
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", None)
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 # Create directories if they don't exist
 def ensure_directories():

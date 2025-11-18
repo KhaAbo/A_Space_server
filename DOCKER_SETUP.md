@@ -24,6 +24,11 @@ git lfs pull
 # 3. Verify model weights are downloaded
 ls -lh gaze-estimation-testing-main/gaze-estimation/weights/
 # Should show: resnet50.pt, mobileone_s0_gaze.onnx, resnet18_gaze.onnx
+
+# 4. Set up Discord webhook (optional but recommended)
+# Copy the example file and add your Discord webhook URL
+cp api/env.example api/.env
+# Edit api/.env and add your Discord webhook URL
 ```
 
 ## Running the API

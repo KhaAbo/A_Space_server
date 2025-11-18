@@ -18,6 +18,7 @@ from api.config import (
 from api.models import JobStatus, JobInfo, UploadResponse, HealthResponse
 from api.job_manager import JobManager
 from api.gaze_service import gaze_service
+from api.discord_webhook import send_job_notification
 
 
 # Initialize FastAPI app
@@ -111,10 +112,20 @@ async def process_video_background(job_id: str, input_path: Path, model: str):
             # Update status to completed
             job_manager.update_job_status(job_id, JobStatus.COMPLETED)
             
+            # Send Discord webhook notification
+            job = job_manager.get_job(job_id)
+            if job:
+                asyncio.create_task(send_job_notification(job))
+            
         except Exception as e:
             error_msg = str(e)
             print(f"Error processing job {job_id}: {error_msg}")
             job_manager.update_job_status(job_id, JobStatus.FAILED, error=error_msg)
+            
+            # Send Discord webhook notification
+            job = job_manager.get_job(job_id)
+            if job:
+                asyncio.create_task(send_job_notification(job))
 
 
 @app.post("/api/upload", response_model=UploadResponse)

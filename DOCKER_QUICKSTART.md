@@ -21,7 +21,12 @@ cd A_Space_server
 # 2. Pull model weights with Git LFS
 git lfs pull
 
-# 3. Start the API
+# 3. Set up Discord webhook (optional but recommended)
+# Copy the example file and add your Discord webhook URL
+cp api/env.example api/.env
+# Edit api/.env and add your Discord webhook URL
+
+# 4. Start the API
 docker-compose up --build
 ```
 
