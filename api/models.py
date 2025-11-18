@@ -20,6 +20,9 @@ class JobInfo(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     error: Optional[str] = None
+    total_frames: Optional[int] = None
+    processed_frames: int = 0
+    progress_percentage: Optional[float] = None
 
 
 class UploadResponse(BaseModel):

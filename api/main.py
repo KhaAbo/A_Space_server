@@ -88,6 +88,11 @@ async def process_video_background(job_id: str, input_path: Path, model: str):
             if not weight_path.exists():
                 raise FileNotFoundError(f"Model weights not found: {weight_path}")
             
+            # Create progress callback function
+            def progress_callback(total_frames: int, processed_frames: int):
+                """Callback to update job progress."""
+                job_manager.update_progress(job_id, total_frames, processed_frames)
+            
             # Process video (blocking call in executor to not block event loop)
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(
@@ -99,7 +104,8 @@ async def process_video_background(job_id: str, input_path: Path, model: str):
                 BINS,
                 BINWIDTH,
                 ANGLE,
-                str(weight_path)
+                str(weight_path),
+                progress_callback
             )
             
             # Update status to completed
@@ -199,7 +205,10 @@ async def get_all_jobs():
             created_at=datetime.fromisoformat(job["created_at"]),
             started_at=datetime.fromisoformat(job["started_at"]) if job["started_at"] else None,
             completed_at=datetime.fromisoformat(job["completed_at"]) if job["completed_at"] else None,
-            error=job.get("error")
+            error=job.get("error"),
+            total_frames=job.get("total_frames"),
+            processed_frames=job.get("processed_frames", 0),
+            progress_percentage=job.get("progress_percentage")
         )
         job_infos.append(job_info)
     
@@ -227,7 +236,10 @@ async def get_job_status(job_id: str):
         created_at=datetime.fromisoformat(job["created_at"]),
         started_at=datetime.fromisoformat(job["started_at"]) if job["started_at"] else None,
         completed_at=datetime.fromisoformat(job["completed_at"]) if job["completed_at"] else None,
-        error=job.get("error")
+        error=job.get("error"),
+        total_frames=job.get("total_frames"),
+        processed_frames=job.get("processed_frames", 0),
+        progress_percentage=job.get("progress_percentage")
     )
     
     return job_info

@@ -6,7 +6,8 @@ A FastAPI-based service for video gaze estimation using deep learning models.
 
 - 📹 Upload videos for gaze estimation processing
 - 🎯 Process videos with multiple model options (ResNet18/34/50, MobileNet, MobileOne)
-- 📊 Track job status asynchronously
+- 📊 Track job status asynchronously with real-time progress tracking
+- 📈 Frame-by-frame progress monitoring (total frames, processed frames, percentage)
 - 💾 Download processed videos with annotated gaze directions
 - 🧹 Automatic cleanup of old files (24-hour retention)
 - 🔒 Single-video-at-a-time processing to prevent resource overload
@@ -107,7 +108,7 @@ job_id = response.json()["job_id"]
 
 ### `GET /api/jobs/{job_id}`
 
-Check the status of a processing job.
+Check the status of a processing job with real-time progress tracking.
 
 **Response:**
 
@@ -120,7 +121,10 @@ Check the status of a processing job.
   "created_at": "2025-11-17T10:30:00",
   "started_at": "2025-11-17T10:30:05",
   "completed_at": null,
-  "error": null
+  "error": null,
+  "total_frames": 1500,
+  "processed_frames": 750,
+  "progress_percentage": 50.0
 }
 ```
 
@@ -130,6 +134,14 @@ Check the status of a processing job.
 - `processing`: Currently being processed
 - `completed`: Successfully completed
 - `failed`: Processing failed (check `error` field)
+
+**Progress tracking fields:**
+
+- `total_frames`: Total number of frames in the video (available once processing starts)
+- `processed_frames`: Number of frames processed so far
+- `progress_percentage`: Completion percentage (0-100), calculated as `(processed_frames / total_frames) * 100`
+
+> **Note:** Progress updates occur every 10 frames to balance real-time feedback with performance.
 
 **Example:**
 
@@ -154,7 +166,10 @@ Get all jobs.
 "created_at": "2025-11-17T10:30:00",
 "started_at": "2025-11-17T10:30:05",
 "completed_at": null,
-"error": null
+"error": null,
+"total_frames": 1500,
+"processed_frames": 750,
+"progress_percentage": 50.0
 },
 {
 "job_id": "456e7890-e89b-12d3-a456-426614174001",
@@ -164,7 +179,10 @@ Get all jobs.
 "created_at": "2025-11-17T09:00:00",
 "started_at": "2025-11-17T09:00:05",
 "completed_at": "2025-11-17T09:05:30",
-"error": null
+"error": null,
+"total_frames": 2400,
+"processed_frames": 2400,
+"progress_percentage": 100.0
 }
 ]**Example:**
 
@@ -250,16 +268,23 @@ with open("video.mp4", "rb") as f:
 job_id = response.json()["job_id"]
 print(f"Job ID: {job_id}")
 
-# 2. Poll for status
+# 2. Poll for status with progress monitoring
 while True:
     response = requests.get(f"{API_URL}/api/jobs/{job_id}")
     job = response.json()
-    print(f"Status: {job['status']}")
+
+    # Display progress information
+    status = job['status']
+    if status == 'processing' and job['progress_percentage']:
+        print(f"Status: {status} - {job['progress_percentage']:.1f}% "
+              f"({job['processed_frames']}/{job['total_frames']} frames)")
+    else:
+        print(f"Status: {status}")
 
     if job["status"] in ["completed", "failed"]:
         break
 
-    time.sleep(5)
+    time.sleep(2)  # Check every 2 seconds for progress updates
 
 # 3. Download result
 if job["status"] == "completed":
@@ -310,11 +335,14 @@ backend_a_space/
 2. Job created with status `pending`
 3. Background task starts processing:
    - Status changes to `processing`
+   - Total frames counted and stored
    - Face detection on each frame (RetinaFace)
    - Gaze estimation for each detected face
    - Draw bounding boxes and gaze arrows
+   - Progress updated every 10 frames
    - Save to `storage/outputs/{job_id}/processed.mp4`
 4. Status changes to `completed` or `failed`
+5. Progress set to 100% on completion
 
 ### Single-Video Processing
 

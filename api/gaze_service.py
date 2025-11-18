@@ -62,8 +62,20 @@ class GazeEstimationService:
         return image_batch
     
     def process_video(self, input_path: str, output_path: str, model_name: str, 
-                      bins: int, binwidth: int, angle: int, weight_path: str):
-        """Process video file for gaze estimation."""
+                      bins: int, binwidth: int, angle: int, weight_path: str,
+                      progress_callback=None):
+        """Process video file for gaze estimation.
+        
+        Args:
+            input_path: Path to input video
+            output_path: Path to save processed video
+            model_name: Name of the model to use
+            bins: Number of bins for gaze estimation
+            binwidth: Width of each bin
+            angle: Angle offset
+            weight_path: Path to model weights
+            progress_callback: Optional callback function(total_frames, processed_frames)
+        """
         # Ensure models are loaded
         self.load_face_detector()
         self.load_model(model_name, bins, weight_path)
@@ -86,6 +98,10 @@ class GazeEstimationService:
         frame_count = 0
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         
+        # Call progress callback with total frames
+        if progress_callback:
+            progress_callback(total_frames, 0)
+        
         with torch.no_grad():
             while True:
                 success, frame = cap.read()
@@ -97,6 +113,10 @@ class GazeEstimationService:
                 frame_count += 1
                 if frame_count % 30 == 0:
                     logging.info(f"Processing frame {frame_count}/{total_frames}")
+                
+                # Report progress callback every frame (can be throttled if needed)
+                if progress_callback and frame_count % 10 == 0:  # Update every 10 frames
+                    progress_callback(total_frames, frame_count)
                 
                 # Detect faces - new uniface API returns list of dicts
                 faces = self.face_detector.detect(frame)
@@ -149,6 +169,10 @@ class GazeEstimationService:
                 
                 # Write frame
                 out.write(frame)
+        
+        # Final progress update
+        if progress_callback:
+            progress_callback(total_frames, frame_count)
         
         # Cleanup
         cap.release()

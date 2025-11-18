@@ -43,7 +43,10 @@ class JobManager:
             "created_at": datetime.now().isoformat(),
             "started_at": None,
             "completed_at": None,
-            "error": None
+            "error": None,
+            "total_frames": None,
+            "processed_frames": 0,
+            "progress_percentage": None
         }
         self.jobs[job_id] = job
         self.save_jobs()
@@ -64,9 +67,32 @@ class JobManager:
             self.jobs[job_id]["started_at"] = datetime.now().isoformat()
         elif status in [JobStatus.COMPLETED, JobStatus.FAILED]:
             self.jobs[job_id]["completed_at"] = datetime.now().isoformat()
+            # Set progress to 100% on completion
+            if status == JobStatus.COMPLETED and self.jobs[job_id].get("total_frames"):
+                self.jobs[job_id]["progress_percentage"] = 100.0
         
         if error:
             self.jobs[job_id]["error"] = error
+        
+        self.save_jobs()
+    
+    def update_progress(self, job_id: str, total_frames: Optional[int] = None, 
+                       processed_frames: Optional[int] = None):
+        """Update job progress information."""
+        if job_id not in self.jobs:
+            return
+        
+        if total_frames is not None:
+            self.jobs[job_id]["total_frames"] = total_frames
+        
+        if processed_frames is not None:
+            self.jobs[job_id]["processed_frames"] = processed_frames
+        
+        # Calculate progress percentage
+        if self.jobs[job_id].get("total_frames") and self.jobs[job_id]["total_frames"] > 0:
+            current_frames = self.jobs[job_id]["processed_frames"]
+            total = self.jobs[job_id]["total_frames"]
+            self.jobs[job_id]["progress_percentage"] = round((current_frames / total) * 100, 2)
         
         self.save_jobs()
     
