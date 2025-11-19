@@ -259,8 +259,9 @@ async def get_job_status(job_id: str):
 @app.get("/api/download/{job_id}")
 async def download_result(job_id: str):
     """
-    Download the processed video file.
+    Stream or download the processed video file.
     
+    Supports HTTP Range requests for video streaming and seeking.
     Only available when job status is 'completed'.
     """
     job = job_manager.get_job(job_id)
