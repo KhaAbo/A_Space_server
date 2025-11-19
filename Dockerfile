@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     libgomp1 \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory

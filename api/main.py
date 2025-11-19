@@ -3,17 +3,28 @@ import asyncio
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+import subprocess
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse, JSONResponse
+
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Request
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 import torch
 
 from api.config import (
-    MAX_FILE_SIZE, ALLOWED_FORMATS, DEFAULT_MODEL, SUPPORTED_MODELS,
-    UPLOADS_DIR, OUTPUTS_DIR, BINS, BINWIDTH, ANGLE, WEIGHTS_DIR,
-    ensure_directories, CLEANUP_INTERVAL_HOURS
+    MAX_FILE_SIZE,
+    ALLOWED_FORMATS,
+    DEFAULT_MODEL,
+    SUPPORTED_MODELS,
+    UPLOADS_DIR,
+    OUTPUTS_DIR,
+    BINS,
+    BINWIDTH,
+    ANGLE,
+    WEIGHTS_DIR,
+    ensure_directories,
+    CLEANUP_INTERVAL_HOURS,
 )
 from api.models import JobStatus, JobInfo, UploadResponse, HealthResponse
 from api.job_manager import JobManager
@@ -25,7 +36,7 @@ from api.discord_webhook import send_job_notification
 app = FastAPI(
     title="Gaze Estimation API",
     description="API for video-based gaze estimation using deep learning",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Add CORS middleware
@@ -46,20 +57,20 @@ processing_lock = asyncio.Lock()
 async def startup_event():
     """Initialize services on startup."""
     global job_manager
-    
+
     # Ensure directories exist
     ensure_directories()
-    
+
     # Initialize job manager
     job_manager = JobManager()
-    
+
     # Run cleanup of old files
     cleaned = job_manager.cleanup_old_jobs()
     print(f"Startup cleanup: removed {cleaned} old jobs")
-    
+
     # Start background cleanup task
     asyncio.create_task(periodic_cleanup())
-    
+
     print("API started successfully")
 
 
@@ -78,22 +89,22 @@ async def process_video_background(job_id: str, input_path: Path, model: str):
         try:
             # Update status to processing
             job_manager.update_job_status(job_id, JobStatus.PROCESSING)
-            
+
             # Setup paths
             output_dir = OUTPUTS_DIR / job_id
             output_dir.mkdir(parents=True, exist_ok=True)
             output_path = output_dir / "processed.mp4"
-            
+
             # Get weight path
             weight_path = WEIGHTS_DIR / f"{model}.pt"
             if not weight_path.exists():
                 raise FileNotFoundError(f"Model weights not found: {weight_path}")
-            
+
             # Create progress callback function
             def progress_callback(total_frames: int, processed_frames: int):
                 """Callback to update job progress."""
                 job_manager.update_progress(job_id, total_frames, processed_frames)
-            
+
             # Process video (blocking call in executor to not block event loop)
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(
@@ -106,22 +117,25 @@ async def process_video_background(job_id: str, input_path: Path, model: str):
                 BINWIDTH,
                 ANGLE,
                 str(weight_path),
-                progress_callback
+                progress_callback,
             )
-            
+
+            # Add faststart atom for streaming compatibility
+            await add_faststart_to_video(output_path)
+
             # Update status to completed
             job_manager.update_job_status(job_id, JobStatus.COMPLETED)
-            
+
             # Send Discord webhook notification
             job = job_manager.get_job(job_id)
             if job:
                 asyncio.create_task(send_job_notification(job))
-            
+
         except Exception as e:
             error_msg = str(e)
             print(f"Error processing job {job_id}: {error_msg}")
             job_manager.update_job_status(job_id, JobStatus.FAILED, error=error_msg)
-            
+
             # Send Discord webhook notification
             job = job_manager.get_job(job_id)
             if job:
@@ -132,11 +146,11 @@ async def process_video_background(job_id: str, input_path: Path, model: str):
 async def upload_video(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    model: str = DEFAULT_MODEL
+    model: str = DEFAULT_MODEL,
 ):
     """
     Upload a video file for gaze estimation processing.
-    
+
     - **file**: Video file (.mp4, .mov, .avi)
     - **model**: Model to use (default: resnet50)
     """
@@ -144,55 +158,55 @@ async def upload_video(
     if model not in SUPPORTED_MODELS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid model. Supported models: {', '.join(SUPPORTED_MODELS)}"
+            detail=f"Invalid model. Supported models: {', '.join(SUPPORTED_MODELS)}",
         )
-    
+
     # Validate file format
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in ALLOWED_FORMATS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid file format. Allowed formats: {', '.join(ALLOWED_FORMATS)}"
+            detail=f"Invalid file format. Allowed formats: {', '.join(ALLOWED_FORMATS)}",
         )
-    
+
     # Generate job ID
     job_id = str(uuid.uuid4())
-    
+
     # Create upload directory
     upload_dir = UPLOADS_DIR / job_id
     upload_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Save uploaded file
     file_path = upload_dir / f"original{file_ext}"
-    
+
     try:
         # Read and save file (with size check)
         content = await file.read()
         if len(content) > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=400,
-                detail=f"File too large. Maximum size: {MAX_FILE_SIZE / (1024**3):.1f}GB"
+                detail=f"File too large. Maximum size: {MAX_FILE_SIZE / (1024**3):.1f}GB",
             )
-        
+
         with open(file_path, "wb") as f:
             f.write(content)
-        
+
     except Exception as e:
         # Cleanup on error
         if upload_dir.exists():
             import shutil
+
             shutil.rmtree(upload_dir, ignore_errors=True)
         raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
-    
+
     # Create job record
     job_manager.create_job(job_id, file.filename, model)
-    
+
     # Start background processing
     background_tasks.add_task(process_video_background, job_id, file_path, model)
-    
+
     return UploadResponse(
-        job_id=job_id,
-        message="Video uploaded successfully. Processing started."
+        job_id=job_id, message="Video uploaded successfully. Processing started."
     )
 
 
@@ -200,11 +214,11 @@ async def upload_video(
 async def get_all_jobs():
     """
     Get all jobs.
-    
+
     Returns a list of all jobs with their information including status, timestamps, and errors if failed.
     """
     jobs = job_manager.list_jobs()
-    
+
     # Parse datetime strings for each job
     job_infos = []
     for job in jobs:
@@ -214,15 +228,21 @@ async def get_all_jobs():
             filename=job["filename"],
             model=job["model"],
             created_at=datetime.fromisoformat(job["created_at"]),
-            started_at=datetime.fromisoformat(job["started_at"]) if job["started_at"] else None,
-            completed_at=datetime.fromisoformat(job["completed_at"]) if job["completed_at"] else None,
+            started_at=(
+                datetime.fromisoformat(job["started_at"]) if job["started_at"] else None
+            ),
+            completed_at=(
+                datetime.fromisoformat(job["completed_at"])
+                if job["completed_at"]
+                else None
+            ),
             error=job.get("error"),
             total_frames=job.get("total_frames"),
             processed_frames=job.get("processed_frames", 0),
-            progress_percentage=job.get("progress_percentage")
+            progress_percentage=job.get("progress_percentage"),
         )
         job_infos.append(job_info)
-    
+
     return job_infos
 
 
@@ -230,14 +250,14 @@ async def get_all_jobs():
 async def get_job_status(job_id: str):
     """
     Get the status of a processing job.
-    
+
     Returns job information including status, timestamps, and error if failed.
     """
     job = job_manager.get_job(job_id)
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     # Parse datetime strings
     job_info = JobInfo(
         job_id=job["job_id"],
@@ -245,14 +265,18 @@ async def get_job_status(job_id: str):
         filename=job["filename"],
         model=job["model"],
         created_at=datetime.fromisoformat(job["created_at"]),
-        started_at=datetime.fromisoformat(job["started_at"]) if job["started_at"] else None,
-        completed_at=datetime.fromisoformat(job["completed_at"]) if job["completed_at"] else None,
+        started_at=(
+            datetime.fromisoformat(job["started_at"]) if job["started_at"] else None
+        ),
+        completed_at=(
+            datetime.fromisoformat(job["completed_at"]) if job["completed_at"] else None
+        ),
         error=job.get("error"),
         total_frames=job.get("total_frames"),
         processed_frames=job.get("processed_frames", 0),
-        progress_percentage=job.get("progress_percentage")
+        progress_percentage=job.get("progress_percentage"),
     )
-    
+
     return job_info
 
 
@@ -260,30 +284,116 @@ async def get_job_status(job_id: str):
 async def download_result(job_id: str):
     """
     Stream or download the processed video file.
-    
+
     Supports HTTP Range requests for video streaming and seeking.
     Only available when job status is 'completed'.
     """
     job = job_manager.get_job(job_id)
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     if job["status"] != JobStatus.COMPLETED:
         raise HTTPException(
             status_code=400,
-            detail=f"Job not completed. Current status: {job['status']}"
+            detail=f"Job not completed. Current status: {job['status']}",
         )
-    
+
     # Check if output file exists
     output_path = OUTPUTS_DIR / job_id / "processed.mp4"
     if not output_path.exists():
         raise HTTPException(status_code=404, detail="Processed video not found")
-    
+
     return FileResponse(
-        path=output_path,
+        path=output_path, media_type="video/mp4", filename=f"gaze_{job['filename']}"
+    )
+
+
+async def add_faststart_to_video(video_path: Path):
+    """
+    Re-encode video with H.264 codec and add faststart atom for streaming compatibility.
+    This converts OpenCV's mpeg4 codec to libx264 (H.264) which is standard for web video,
+    and adds the faststart atom for HTML5 video players.
+    """
+    temp_path = video_path.with_suffix(".tmp.mp4")
+    
+    try:
+        # Re-encode with H.264 codec and add faststart atom
+        # -c:v libx264: Use H.264 codec for video (web standard)
+        # -preset fast: Balance between encoding speed and file size
+        # -crf 22: Quality setting (lower = better quality, 18-28 is typical range)
+        # -c:a aac: Use AAC codec for audio (if present)
+        # -movflags faststart: Add faststart atom for streaming
+        cmd = [
+            "ffmpeg",
+            "-i", str(video_path),
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "22",
+            "-c:a", "aac",
+            "-movflags", "faststart",
+            "-y",  # Overwrite output file
+            str(temp_path),
+        ]
+        
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        
+        await proc.wait()
+        
+        if proc.returncode == 0:
+            # Replace original file with re-encoded version
+            temp_path.replace(video_path)
+            print(f"Re-encoded video with H.264 and added faststart to {video_path}")
+        else:
+            # If ffmpeg fails, keep original file
+            stderr = await proc.stderr.read()
+            print(f"Warning: Failed to re-encode video {video_path}: {stderr.decode()}")
+            if temp_path.exists():
+                temp_path.unlink()
+    except Exception as e:
+        print(f"Error re-encoding video: {e}")
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+@app.get("/api/play_video/{job_id}")
+async def video_stream(job_id: str):
+    """
+    Stream video file with proper range request support for HTML5 video players.
+    Uses FileResponse which automatically handles HTTP range requests correctly.
+    Serves the processed video from the outputs directory.
+    Automatically adds faststart atom if missing for streaming compatibility.
+    """
+    video_path = OUTPUTS_DIR / job_id / "processed.mp4"
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    # Check if faststart marker file exists (indicates faststart was already added)
+    faststart_marker = video_path.with_suffix(".faststart")
+    
+    # If faststart hasn't been added yet, add it now
+    if not faststart_marker.exists():
+        try:
+            await add_faststart_to_video(video_path)
+            # Create marker file to indicate faststart was added
+            faststart_marker.touch()
+        except Exception as e:
+            # If faststart addition fails, still try to serve the video
+            print(f"Warning: Could not add faststart to {video_path}: {e}")
+
+    # FileResponse automatically handles range requests, Content-Range headers, etc.
+    # This is the recommended FastAPI way for serving files with range support
+    return FileResponse(
+        path=str(video_path),
         media_type="video/mp4",
-        filename=f"gaze_{job['filename']}"
+        headers={
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "public, max-age=3600",
+        },
     )
 
 
@@ -293,15 +403,14 @@ async def delete_job(job_id: str):
     Delete a job and its associated files.
     """
     job = job_manager.get_job(job_id)
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     job_manager.delete_job(job_id)
-    
+
     return JSONResponse(
-        status_code=204,
-        content={"message": "Job deleted successfully"}
+        status_code=204, content={"message": "Job deleted successfully"}
     )
 
 
@@ -312,12 +421,12 @@ async def health_check():
     """
     gpu_available = torch.cuda.is_available()
     model_loaded = gaze_service.gaze_detector is not None
-    
+
     return HealthResponse(
         status="healthy",
         gpu_available=gpu_available,
         model_loaded=model_loaded,
-        storage_path=str(UPLOADS_DIR.parent)
+        storage_path=str(UPLOADS_DIR.parent),
     )
 
 
@@ -328,5 +437,5 @@ async def root():
         "name": "Gaze Estimation API",
         "version": "1.0.0",
         "docs": "/docs",
-        "health": "/api/health"
+        "health": "/api/health",
     }
