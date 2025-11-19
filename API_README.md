@@ -137,11 +137,11 @@ Check the status of a processing job with real-time progress tracking.
 
 **Progress tracking fields:**
 
-- `total_frames`: Total number of frames in the video (available once processing starts)
-- `processed_frames`: Number of frames processed so far
-- `progress_percentage`: Completion percentage (0-100), calculated as `(processed_frames / total_frames) * 100`
+- `total_frames` (int|null): Total number of frames in the video (populated once processing starts, `null` while job is in `pending` status)
+- `processed_frames` (int): Number of frames processed so far (starts at `0`, updates every 10 frames during processing, final value equals `total_frames` when completed)
+- `progress_percentage` (float|null): Completion percentage (0-100), calculated as `(processed_frames / total_frames) * 100` (rounded to 2 decimal places, `null` until processing begins)
 
-> **Note:** Progress updates occur every 10 frames to balance real-time feedback with performance.
+> **Note:** Progress updates occur every 10 frames to balance real-time feedback with performance. This frequency can be adjusted in `api/gaze_service.py` line 118.
 
 **Example:**
 
