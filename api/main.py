@@ -6,7 +6,14 @@ from typing import Optional
 import subprocess
 
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Request
+from fastapi import (
+    FastAPI,
+    UploadFile,
+    File,
+    HTTPException,
+    BackgroundTasks,
+    Query,
+)
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -316,7 +323,7 @@ async def add_faststart_to_video(video_path: Path):
     and adds the faststart atom for HTML5 video players.
     """
     temp_path = video_path.with_suffix(".tmp.mp4")
-    
+
     try:
         # Re-encode with H.264 codec and add faststart atom
         # -c:v libx264: Use H.264 codec for video (web standard)
@@ -326,24 +333,30 @@ async def add_faststart_to_video(video_path: Path):
         # -movflags faststart: Add faststart atom for streaming
         cmd = [
             "ffmpeg",
-            "-i", str(video_path),
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "22",
-            "-c:a", "aac",
-            "-movflags", "faststart",
+            "-i",
+            str(video_path),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "22",
+            "-c:a",
+            "aac",
+            "-movflags",
+            "faststart",
             "-y",  # Overwrite output file
             str(temp_path),
         ]
-        
+
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        
+
         await proc.wait()
-        
+
         if proc.returncode == 0:
             # Replace original file with re-encoded version
             temp_path.replace(video_path)
@@ -374,7 +387,7 @@ async def video_stream(job_id: str):
 
     # Check if faststart marker file exists (indicates faststart was already added)
     faststart_marker = video_path.with_suffix(".faststart")
-    
+
     # If faststart hasn't been added yet, add it now
     if not faststart_marker.exists():
         try:
@@ -439,3 +452,26 @@ async def root():
         "docs": "/docs",
         "health": "/api/health",
     }
+
+@app.get("/api/progress")
+async def progress(job_id: str = Query(...)) -> StreamingResponse:
+    """
+    Stream progress of a job.
+
+    - **job_id**: ID of the job to stream progress for
+
+    Raises:
+        HTTPException: If job manager is not initialized
+
+    Returns:
+        StreamingResponse: Streaming response with progress data
+    """
+    try:
+        if not job_manager:
+            raise HTTPException(status_code=500, detail="Job manager not initialized")
+
+        return StreamingResponse(
+            job_manager.stream_progress(job_id), media_type="text/event-stream"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
