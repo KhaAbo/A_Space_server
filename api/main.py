@@ -316,6 +316,33 @@ async def download_result(job_id: str):
     )
 
 
+@app.get("/api/download-data/{job_id}")
+async def download_gaze_data(job_id: str):
+    """
+    Download the gaze data JSON file.
+    Only available when job status is 'completed'.
+    """
+    job = job_manager.get_job(job_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job["status"] != JobStatus.COMPLETED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job not completed. Current status: {job['status']}",
+        )
+
+    # Check if output file exists
+    json_path = OUTPUTS_DIR / job_id / "gaze_data.json"
+    if not json_path.exists():
+        raise HTTPException(status_code=404, detail="Gaze data not found")
+
+    return FileResponse(
+        path=json_path, media_type="application/json", filename=f"gaze_data_{job['filename']}.json"
+    )
+
+
 async def add_faststart_to_video(video_path: Path):
     """
     Re-encode video with H.264 codec and add faststart atom for streaming compatibility.
@@ -457,19 +484,19 @@ async def root():
 async def progress(job_id: str = Query(...)) -> StreamingResponse:
     """
     Stream progress of a job.
-
+    
     - **job_id**: ID of the job to stream progress for
-
+    
     Raises:
         HTTPException: If job manager is not initialized
-
+    
     Returns:
         StreamingResponse: Streaming response with progress data
     """
     try:
         if not job_manager:
             raise HTTPException(status_code=500, detail="Job manager not initialized")
-
+            
         return StreamingResponse(
             job_manager.stream_progress(job_id), media_type="text/event-stream"
         )
