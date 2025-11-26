@@ -168,7 +168,6 @@ class GazeEstimationService:
             frame_rate=int(round(effective_fps)),
         )
         track_registry: dict[int, dict] = {}
-        frame_stats = []
         total_faces_detected = 0
         total_roi_hits = 0
         peak_roi_hits = 0
@@ -355,35 +354,22 @@ class GazeEstimationService:
                         cv2.LINE_AA,
                     )
 
-                    gaze_data.append(
-                        {
-                            "frame": frame_count,
-                            "timestamp": frame_timestamp,
-                            "face_index": track_id if track_id is not None else det_idx,
-                            "track_id": track_id,
-                            "bbox": [int(x) for x in bbox],
-                            "head_pose": [float(yaw_rad), float(pitch_rad)],
-                            "gazepoint": [int(gazepoint_x), int(gazepoint_y)],
-                            "in_roi": bool(in_roi),
-                        }
-                    )
+                    # Only save detections where person is looking at ROI
+                    if in_roi:
+                        gaze_data.append(
+                            {
+                                "frame": frame_count,
+                                "track_id": track_id,
+                                "bbox": [int(x) for x in bbox],
+                                "head_pose": [round(float(yaw_rad), 3), round(float(pitch_rad), 3)],
+                                "gazepoint": [int(gazepoint_x), int(gazepoint_y)],
+                            }
+                        )
 
                 roi_hits = int(sum(frame_roi_hits))
                 peak_roi_hits = max(peak_roi_hits, roi_hits)
                 total_faces_detected += len(valid_detections)
                 total_roi_hits += roi_hits
-                active_track_ids = [int(tid) for tid in track_ids if tid >= 0]
-                frame_stats.append(
-                    {
-                        "frame": frame_count,
-                        "timestamp": frame_timestamp,
-                        "total_faces": len(valid_detections),
-                        "roi_hits": roi_hits,
-                        "non_roi_faces": max(len(valid_detections) - roi_hits, 0),
-                        "active_track_count": len(set(active_track_ids)),
-                        "active_track_ids": sorted(set(active_track_ids)),
-                    }
-                )
 
                 self._draw_roi(frame, roi_bounds, any(frame_roi_hits))
 
@@ -398,7 +384,7 @@ class GazeEstimationService:
         cap.release()
         out.release()
 
-        # Save gaze data
+        # Save gaze data (compact format)
         json_path = Path(output_path).parent / "gaze_data.json"
         total_non_roi = max(total_faces_detected - total_roi_hits, 0)
         roi_engagement_rate = (
@@ -413,19 +399,18 @@ class GazeEstimationService:
             track_summaries.append(
                 {
                     "track_id": stats["track_id"],
-                    "first_seen_frame": stats["first_seen_frame"],
-                    "last_seen_frame": stats["last_seen_frame"],
-                    "first_seen_timestamp": stats["first_seen_ts"],
-                    "last_seen_timestamp": stats["last_seen_ts"],
+                    "first_frame": stats["first_seen_frame"],
+                    "last_frame": stats["last_seen_frame"],
                     "frames_visible": stats["frames_visible"],
                     "roi_hits": stats["roi_hits"],
                     "ever_in_roi": stats["ever_in_roi"],
-                    "roi_engagement_rate": (
+                    "roi_rate": round(
                         stats["roi_hits"] / stats["frames_visible"]
                         if stats["frames_visible"]
-                        else 0.0
+                        else 0.0,
+                        3,
                     ),
-                    "duration_seconds": duration_seconds,
+                    "duration_sec": round(duration_seconds, 3),
                 }
             )
 
@@ -435,25 +420,31 @@ class GazeEstimationService:
         unique_roi_engagement_rate = (
             unique_tracks_roi / unique_tracks_total if unique_tracks_total else 0.0
         )
+        # Compact payload with short keys and no redundant data
+        # Key mapping for detections: f=frame, t=track_id, b=bbox, h=head_pose, g=gazepoint, r=in_roi
+        # Timestamps can be derived: timestamp = frame / fps
         gaze_payload = {
+            "meta": {
+                "fps": round(effective_fps, 3),
+                "total_frames": frame_count,
+            },
             "detections": gaze_data,
-            "frame_stats": frame_stats,
             "tracks": track_summaries,
             "summary": {
-                "total_frames": frame_count,
-                "total_faces_detected": total_faces_detected,
-                "total_roi_hits": total_roi_hits,
-                "total_non_roi_faces": total_non_roi,
-                "roi_engagement_rate": roi_engagement_rate,
-                "peak_concurrent_roi_hits": peak_roi_hits,
-                "unique_tracks_total": unique_tracks_total,
-                "unique_tracks_roi": unique_tracks_roi,
-                "unique_tracks_non_roi": unique_tracks_non_roi,
-                "unique_roi_engagement_rate": unique_roi_engagement_rate,
+                "total_faces": total_faces_detected,
+                "roi_hits": total_roi_hits,
+                "non_roi": total_non_roi,
+                "roi_rate": round(roi_engagement_rate, 3),
+                "peak_roi": peak_roi_hits,
+                "unique_tracks": unique_tracks_total,
+                "unique_roi": unique_tracks_roi,
+                "unique_non_roi": unique_tracks_non_roi,
+                "unique_roi_rate": round(unique_roi_engagement_rate, 3),
             },
         }
+        # Compact JSON (no indent) for smaller file size
         with open(json_path, "w") as f:
-            json.dump(gaze_payload, f, indent=2)
+            json.dump(gaze_payload, f, separators=(",", ":"))
 
         logging.info(f"Output saved to: {output_path}")
         logging.info(f"Gaze data saved to: {json_path}")
