@@ -26,7 +26,7 @@ ALLOWED_FORMATS = [".mp4", ".mov", ".avi"]
 
 # Model settings
 DEFAULT_MODEL = "resnet50"
-SUPPORTED_MODELS = ["resnet18", "resnet34", "resnet50", "mobilenetv2", "mobileone_s0"]
+SUPPORTED_MODELS = ["resnet18", "resnet50", "mobileone_s0"]
 
 # Dataset configuration (fixed to gaze360)
 DATASET = "gaze360"

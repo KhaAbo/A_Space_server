@@ -16,7 +16,7 @@ REM Check if FastAPI is installed
 python -c "import fastapi" 2>nul
 if errorlevel 1 (
     echo Installing API dependencies...
-    pip install -r requirements-api.txt
+    pip install -r requirements-docker.txt
     echo.
 )
 

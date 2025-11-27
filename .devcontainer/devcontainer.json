@@ -30,7 +30,7 @@
         }
     },
     
-    "postCreateCommand": "pip install --no-cache-dir -r requirements-api.txt",
+    "postCreateCommand": "pip install --no-cache-dir -r requirements-docker.txt",
     
     "forwardPorts": [8000],
     "portsAttributes": {
