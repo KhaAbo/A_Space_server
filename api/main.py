@@ -321,6 +321,12 @@ async def download_gaze_data(job_id: str):
     """
     Download the gaze data JSON file.
     Only available when job status is 'completed'.
+
+    Returns compact JSON with:
+    - meta: {fps, total_frames}
+    - detections: Only frames where person looked at ROI
+    - tracks: Per-person engagement summary
+    - summary: Overall video statistics
     """
     job = job_manager.get_job(job_id)
 

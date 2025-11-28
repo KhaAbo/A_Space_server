@@ -18,7 +18,7 @@ fi
 # Check if requirements are installed
 if ! python -c "import fastapi" 2>/dev/null; then
     echo "Installing API dependencies..."
-    pip install -r requirements-api.txt
+    pip install -r requirements-docker.txt
     echo ""
 fi
 
