@@ -1,0 +1,10 @@
+# Core dependencies
+torch>=1.13.0
+torchvision>=0.14.0
+opencv-python>=4.7.0
+numpy>=1.21.0
+PyYAML>=6.0
+Pillow>=9.0.0
+
+# Cython for MogFace NMS extensions
+Cython>=0.29.0

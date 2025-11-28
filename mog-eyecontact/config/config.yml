@@ -1,0 +1,63 @@
+# ============================================================================
+# Eye Contact Detection Pipeline - Unified Configuration
+# ============================================================================
+
+# Paths Configuration
+paths:
+  weights_dir: "weights"
+  mogface_weights: "weights/mogface.pth"
+  eye_contact_weights: "weights/eye_contact.pkl"
+  data_dir: "data"
+
+# Device Configuration
+device:
+  default: null  # auto-detect: cuda > mps > cpu
+  # Options: "cpu", "cuda", "mps", or null for auto-detection
+
+# MogFace Detector Configuration
+mogface:
+  # Inference thresholds
+  score_threshold: 0.5      # Minimum confidence score for detections
+  nms_threshold: 0.3        # Non-maximum suppression threshold
+  max_bbox_per_img: 750     # Maximum bounding boxes per image
+
+# Eye Contact CNN Configuration
+eye_contact:
+  # Model architecture
+  model: ResNet50
+  layers: [3, 4, 6, 3]  # ResNet50 layer configuration
+  
+  # Image preprocessing
+  image_size: 224
+  center_crop: 224
+  
+  # Normalization (ImageNet standard)
+  img_mean: [0.485, 0.456, 0.406]
+  img_std: [0.229, 0.224, 0.225]
+  
+  # Inference settings
+  use_sigmoid: true  # Apply sigmoid to output for probability score
+
+# Visualization Configuration
+visualization:
+  # Bounding box colors (BGR format)
+  bbox_color:
+    eye_contact: [0, 255, 0]      # Green for eye contact
+    no_eye_contact: [0, 0, 255]   # Red for no eye contact
+  
+  # Display settings
+  bbox_thickness: 2
+  font_scale: 0.6
+  font_thickness: 2
+  text_color: [255, 255, 255]     # White text
+  
+  # Thresholds
+  eye_contact_threshold: 0.5      # Score threshold for "eye contact" label
+
+# Video Processing Configuration
+video:
+  skip_frames: 0          # Number of frames to skip (0 = process all)
+  display: false          # Show video while processing
+  output_codec: "mp4v"    # Output video codec
+  output_fps: null        # null = use input fps
+

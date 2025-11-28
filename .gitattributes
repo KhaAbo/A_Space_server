@@ -1,2 +1,4 @@
 gaze-estimation-testing-main/gaze-estimation/weights/*.pt filter=lfs diff=lfs merge=lfs -text
 gaze-estimation-testing-main/gaze-estimation/weights/*.onnx filter=lfs diff=lfs merge=lfs -text
+mog-eyecontact/weights/eye_contact.pkl filter=lfs diff=lfs merge=lfs -text
+mog-eyecontact/weights/mogface.pth filter=lfs diff=lfs merge=lfs -text
