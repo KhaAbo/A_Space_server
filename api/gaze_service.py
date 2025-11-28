@@ -1,119 +1,69 @@
+"""Gaze Estimation Service - API-compatible wrapper around the pipeline.
+
+This module provides backward compatibility with the existing API by wrapping
+the GazeEstimationPipeline in the original GazeEstimationService interface.
+"""
+
 import sys
-import cv2
-import logging
-import numpy as np
 import json
+import logging
 from pathlib import Path
+from typing import Callable
 
-import torch
-import torch.nn.functional as F
-from torchvision import transforms
+import cv2
 
-from cjm_byte_track.core import BYTETracker
-from cjm_byte_track.matching import match_detections_with_tracks
+# Add gaze-estimation to path for imports
+GAZE_ESTIMATION_DIR = Path(__file__).parent.parent / "gaze-estimation-testing-main" / "gaze-estimation"
+sys.path.insert(0, str(GAZE_ESTIMATION_DIR))
 
-# Add gaze-estimation to path
-sys.path.insert(
-    0,
-    str(
-        Path(__file__).parent.parent
-        / "gaze-estimation-testing-main"
-        / "gaze-estimation"
-    ),
-)
-
-from utils.helpers import get_model, draw_bbox_gaze
-import uniface
+from gaze_config import Config, get_config
+from pipeline import GazeEstimationPipeline, TrackStats
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 class GazeEstimationService:
-    def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.face_detector = None
-        self.gaze_detector = None
-        self.current_model = None
-        self.idx_tensor = None
+    """API-compatible service wrapper for gaze estimation.
 
-    def load_model(self, model_name: str, bins: int, weight_path: str):
-        """Load the gaze estimation model (singleton pattern)."""
-        if self.gaze_detector is None or self.current_model != model_name:
-            try:
-                logging.info(f"Loading model: {model_name}")
-                self.gaze_detector = get_model(model_name, bins, inference_mode=True)
-                state_dict = torch.load(weight_path, map_location=self.device)
-                self.gaze_detector.load_state_dict(state_dict)
-                self.gaze_detector.to(self.device)
-                self.gaze_detector.eval()
-                self.current_model = model_name
-                self.idx_tensor = torch.arange(
-                    bins, device=self.device, dtype=torch.float32
-                )
-                logging.info("Model loaded successfully")
-            except Exception as e:
-                logging.error(f"Error loading model: {e}")
-                raise
+    This class maintains the original interface while delegating to
+    GazeEstimationPipeline for the actual processing.
+    """
 
-    def load_face_detector(self):
-        """Load face detector (singleton pattern)."""
-        if self.face_detector is None:
-            logging.info("Loading face detector")
-            self.face_detector = uniface.RetinaFace()
+    def __init__(self, config: Config | None = None):
+        """Initialize the service.
 
-    def pre_process(self, image):
-        """Preprocess face image for gaze estimation."""
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        transform = transforms.Compose(
-            [
-                transforms.ToPILImage(),
-                transforms.Resize(448),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                ),
-            ]
-        )
-        image = transform(image)
-        image_batch = image.unsqueeze(0)
-        return image_batch
+        Args:
+            config: Optional configuration. Uses default if None.
+        """
+        self.config = config or get_config()
+        self.pipeline = GazeEstimationPipeline(self.config)
 
-    def _compute_default_roi(self, width: int, height: int):
-        """Approximate the monitor area located just below a webcam."""
-        horizontal_margin = int(width * 0.1)  # leave edges of frame
-        top = int(height * 0.35)  # assume webcam sits above the screen area
-        bottom = min(height - int(height * 0.05), height)  # keep small footer margin
-        left = horizontal_margin
-        right = width - horizontal_margin
-        return left, top, right, bottom
+        # Expose device for compatibility
+        self.device = self.pipeline.device
 
-    @staticmethod
-    def _is_point_in_roi(point, roi_bounds):
-        """Return True if (x, y) lies within roi_bounds."""
-        x, y = point
-        left, top, right, bottom = roi_bounds
-        return left <= x <= right and top <= y <= bottom
+    @property
+    def gaze_detector(self):
+        """Expose gaze detector for backward compatibility."""
+        return self.pipeline.gaze_detector
 
-    @staticmethod
-    def _draw_roi(frame, roi_bounds, is_active: bool):
-        """Visualize ROI and status on the frame."""
-        left, top, right, bottom = roi_bounds
-        color = (0, 200, 0) if is_active else (0, 0, 255)
-        label = "Screen ROI"
-        status = "LOOKING" if is_active else "NOT LOOKING"
+    @property
+    def face_detector(self):
+        """Expose face detector for backward compatibility."""
+        return self.pipeline.face_detector
 
-        cv2.rectangle(frame, (left, top), (right, bottom), color, 3)
-        text_y = max(top - 15, 30)
-        cv2.putText(
-            frame,
-            f"{label}: {status}",
-            (left, text_y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.75,
-            color,
-            2,
-            cv2.LINE_AA,
-        )
+    def load_model(self, model_name: str, bins: int, weight_path: str) -> None:
+        """Load the gaze estimation model (backward compatibility).
+
+        Args:
+            model_name: Name of the model architecture.
+            bins: Number of bins (ignored, uses config).
+            weight_path: Path to model weights.
+        """
+        self.pipeline._load_gaze_model(model_name, weight_path)
+
+    def load_face_detector(self) -> None:
+        """Load face detector (backward compatibility)."""
+        self.pipeline._load_face_detector()
 
     def process_video(
         self,
@@ -124,305 +74,178 @@ class GazeEstimationService:
         binwidth: int,
         angle: int,
         weight_path: str,
-        progress_callback=None,
-    ):
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> None:
         """Process video file for gaze estimation.
 
         Args:
-            input_path: Path to input video
-            output_path: Path to save processed video
-            model_name: Name of the model to use
-            bins: Number of bins for gaze estimation
-            binwidth: Width of each bin
-            angle: Angle offset
-            weight_path: Path to model weights
-            progress_callback: Optional callback function(total_frames, processed_frames)
+            input_path: Path to input video.
+            output_path: Path to save processed video.
+            model_name: Name of the model to use.
+            bins: Number of bins (ignored, uses config).
+            binwidth: Width of each bin (ignored, uses config).
+            angle: Angle offset (ignored, uses config).
+            weight_path: Path to model weights.
+            progress_callback: Optional callback(total_frames, processed_frames).
         """
-        # Ensure models are loaded
-        self.load_face_detector()
-        self.load_model(model_name, bins, weight_path)
+        # Load models
+        self.pipeline.load_models(model_name, weight_path)
 
         # Open video
         cap = cv2.VideoCapture(str(input_path))
         if not cap.isOpened():
             raise IOError(f"Cannot open video: {input_path}")
 
-        # Setup video writer
+        # Get video properties
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS)
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        roi_bounds = self._compute_default_roi(width, height)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        # Ensure output directory exists
+        video_cfg = self.config.section("video")
+        effective_fps = fps if fps and fps > 0 else video_cfg.get("default_fps", 30.0)
+
+        # Setup video writer
+        fourcc = cv2.VideoWriter_fourcc(*video_cfg.get("output_codec", "mp4v"))
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
 
+        # Setup tracking
+        roi_bounds = self.pipeline.get_roi_bounds(width, height)
+        tracker = self.pipeline.create_tracker(effective_fps)
+        track_registry: dict[int, TrackStats] = {}
+
+        # Processing stats
         frame_count = 0
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        effective_fps = fps if fps and fps > 0 else 30.0
-        tracker = BYTETracker(
-            track_thresh=0.3,
-            track_buffer=30,
-            match_thresh=0.8,
-            frame_rate=int(round(effective_fps)),
-        )
-        track_registry: dict[int, dict] = {}
         total_faces_detected = 0
         total_roi_hits = 0
         peak_roi_hits = 0
+        gaze_data = []
 
-        # Call progress callback with total frames
+        # Progress callback intervals
+        progress_interval = video_cfg.get("progress_interval", 10)
+        log_interval = video_cfg.get("log_interval", 30)
+
+        # Initial progress callback
         if progress_callback:
             progress_callback(total_frames, 0)
 
-        gaze_data = []
+        # Process frames
+        while True:
+            success, frame = cap.read()
+            if not success:
+                logging.info("Video processing complete")
+                break
 
-        with torch.no_grad():
-            while True:
-                success, frame = cap.read()
+            frame_count += 1
+            if frame_count % log_interval == 0:
+                logging.info(f"Processing frame {frame_count}/{total_frames}")
 
-                if not success:
-                    logging.info("Video processing complete")
-                    break
+            # Progress callback
+            if progress_callback and frame_count % progress_interval == 0:
+                progress_callback(total_frames, frame_count)
 
-                frame_count += 1
-                if frame_count % 30 == 0:
-                    logging.info(f"Processing frame {frame_count}/{total_frames}")
+            # Process frame through pipeline
+            result = self.pipeline.process_frame(
+                frame=frame,
+                roi_bounds=roi_bounds,
+                tracker=tracker,
+                track_registry=track_registry,
+                frame_count=frame_count,
+                fps=effective_fps,
+            )
 
-                # Report progress callback every frame (can be throttled if needed)
-                if (
-                    progress_callback and frame_count % 10 == 0
-                ):  # Update every 10 frames
-                    progress_callback(total_frames, frame_count)
+            # Accumulate stats
+            total_faces_detected += result.total_faces
+            total_roi_hits += result.roi_hits
+            peak_roi_hits = max(peak_roi_hits, result.roi_hits)
+            gaze_data.extend(result.detections)
 
-                # Detect faces - new uniface API returns list of dicts
-                faces = self.face_detector.detect(frame) or []
-                frame_roi_hits = []
-                valid_detections = []
-                tlbr_boxes = []
-                detection_output = []
-
-                for face in faces:
-                    bbox = np.array(face["bbox"])  # [x1, y1, x2, y2]
-                    x_min, y_min, x_max, y_max = map(int, bbox[:4])
-                    x_center = (x_min + x_max) // 2
-                    y_center = (y_min + y_max) // 2
-                    face_image = frame[y_min:y_max, x_min:x_max]
-
-                    if face_image is None or face_image.size == 0:
-                        continue
-
-                    score = float(
-                        face.get("score")
-                        or face.get("confidence")
-                        or face.get("probability")
-                        or 1.0
-                    )
-                    score = float(np.clip(score, 1e-3, 1.0))
-
-                    valid_detections.append(
-                        {
-                            "bbox": bbox,
-                            "x_center": x_center,
-                            "y_center": y_center,
-                            "face_image": face_image,
-                        }
-                    )
-                    tlbr_boxes.append([x_min, y_min, x_max, y_max])
-                    detection_output.append([x_min, y_min, x_max, y_max, score])
-
-                if detection_output:
-                    detection_array = np.asarray(detection_output, dtype=float)
-                else:
-                    detection_array = np.empty((0, 5), dtype=float)
-
-                tracks = tracker.update(
-                    detection_array, (height, width), (height, width)
-                )
-                track_ids = np.full(len(valid_detections), -1, dtype=int)
-                if valid_detections and tracks:
-                    track_ids = match_detections_with_tracks(
-                        np.asarray(tlbr_boxes, dtype=float),
-                        track_ids,
-                        tracks,
-                    )
-
-                frame_timestamp = frame_count / effective_fps if effective_fps else 0.0
-
-                for det_idx, det in enumerate(valid_detections):
-                    bbox = det["bbox"]
-                    x_center = det["x_center"]
-                    y_center = det["y_center"]
-                    face_image = det["face_image"]
-
-                    face_tensor = self.pre_process(face_image)
-                    face_tensor = face_tensor.to(self.device)
-
-                    gaze_output = self.gaze_detector(face_tensor)
-
-                    if isinstance(gaze_output, tuple):
-                        if len(gaze_output) == 2:
-                            pitch, yaw = gaze_output
-                        elif len(gaze_output) == 3:
-                            pitch, yaw = gaze_output[0], gaze_output[1]
-                        else:
-                            raise ValueError(
-                                f"Unexpected model output: {len(gaze_output)} values"
-                            )
-                    else:
-                        raise ValueError(
-                            f"Expected tuple output, got {type(gaze_output)}"
-                        )
-
-                    pitch_predicted = F.softmax(pitch, dim=1)
-                    yaw_predicted = F.softmax(yaw, dim=1)
-
-                    pitch_predicted = (
-                        torch.sum(pitch_predicted * self.idx_tensor, dim=1) * binwidth
-                        - angle
-                    )
-                    yaw_predicted = (
-                        torch.sum(yaw_predicted * self.idx_tensor, dim=1) * binwidth
-                        - angle
-                    )
-
-                    pitch_rad = np.radians(pitch_predicted.cpu())
-                    yaw_rad = np.radians(yaw_predicted.cpu())
-
-                    draw_bbox_gaze(frame, bbox, pitch_rad, yaw_rad)
-
-                    focal_length = width
-                    dx = float(-focal_length * np.tan(pitch_rad))
-                    dy = float(-focal_length * np.tan(yaw_rad) / np.cos(pitch_rad))
-
-                    gazepoint_x = int(x_center + dx)
-                    gazepoint_y = int(y_center + dy)
-                    in_roi = self._is_point_in_roi(
-                        (gazepoint_x, gazepoint_y), roi_bounds
-                    )
-                    frame_roi_hits.append(in_roi)
-
-                    track_id_val = (
-                        int(track_ids[det_idx]) if det_idx < len(track_ids) else -1
-                    )
-                    track_id = track_id_val if track_id_val >= 0 else None
-
-                    if track_id is not None:
-                        stats = track_registry.setdefault(
-                            track_id,
-                            {
-                                "track_id": track_id,
-                                "first_seen_frame": frame_count,
-                                "first_seen_ts": frame_timestamp,
-                                "last_seen_frame": frame_count,
-                                "last_seen_ts": frame_timestamp,
-                                "frames_visible": 0,
-                                "roi_hits": 0,
-                                "total_detections": 0,
-                                "ever_in_roi": False,
-                            },
-                        )
-                        stats["last_seen_frame"] = frame_count
-                        stats["last_seen_ts"] = frame_timestamp
-                        stats["frames_visible"] += 1
-                        stats["total_detections"] += 1
-                        if in_roi:
-                            stats["roi_hits"] += 1
-                        stats["ever_in_roi"] = stats["ever_in_roi"] or in_roi
-
-                    dot_color = (0, 220, 0) if in_roi else (0, 0, 255)
-                    cv2.circle(frame, (gazepoint_x, gazepoint_y), 10, dot_color, -1)
-                    cv2.circle(frame, (gazepoint_x, gazepoint_y), 12, (0, 0, 0), 2)
-
-                    status_segments = []
-                    if track_id is not None:
-                        status_segments.append(f"ID {track_id}")
-                    status_segments.append(
-                        "LOOKING AT ROI" if in_roi else "LOOKING AWAY"
-                    )
-                    status_text = " - ".join(status_segments)
-                    text_origin = (int(bbox[0]), max(int(bbox[1]) - 10, 25))
-                    cv2.putText(
-                        frame,
-                        status_text,
-                        text_origin,
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6,
-                        dot_color,
-                        2,
-                        cv2.LINE_AA,
-                    )
-
-                    # Only save detections where person is looking at ROI
-                    if in_roi:
-                        gaze_data.append(
-                            {
-                                "frame": frame_count,
-                                "track_id": track_id,
-                                "bbox": [int(x) for x in bbox],
-                                "head_pose": [round(float(yaw_rad), 3), round(float(pitch_rad), 3)],
-                                "gazepoint": [int(gazepoint_x), int(gazepoint_y)],
-                            }
-                        )
-
-                roi_hits = int(sum(frame_roi_hits))
-                peak_roi_hits = max(peak_roi_hits, roi_hits)
-                total_faces_detected += len(valid_detections)
-                total_roi_hits += roi_hits
-
-                self._draw_roi(frame, roi_bounds, any(frame_roi_hits))
-
-                # Write frame
-                out.write(frame)
+            # Write frame
+            out.write(result.frame)
 
         # Final progress update
         if progress_callback:
             progress_callback(total_frames, frame_count)
 
-        # Cleanup
+        # Cleanup video
         cap.release()
         out.release()
 
-        # Save gaze data (compact format)
+        # Build and save gaze data JSON
+        self._save_gaze_data(
+            output_path=output_path,
+            gaze_data=gaze_data,
+            track_registry=track_registry,
+            total_faces_detected=total_faces_detected,
+            total_roi_hits=total_roi_hits,
+            peak_roi_hits=peak_roi_hits,
+            frame_count=frame_count,
+            effective_fps=effective_fps,
+        )
+
+        logging.info(f"Output saved to: {output_path}")
+
+    def _save_gaze_data(
+        self,
+        output_path: str,
+        gaze_data: list,
+        track_registry: dict[int, TrackStats],
+        total_faces_detected: int,
+        total_roi_hits: int,
+        peak_roi_hits: int,
+        frame_count: int,
+        effective_fps: float,
+    ) -> None:
+        """Save gaze detection data to JSON file.
+
+        Args:
+            output_path: Path to output video (JSON saved alongside).
+            gaze_data: List of detection records.
+            track_registry: Track statistics registry.
+            total_faces_detected: Total face detections across all frames.
+            total_roi_hits: Total ROI hits across all frames.
+            peak_roi_hits: Maximum ROI hits in a single frame.
+            frame_count: Total frames processed.
+            effective_fps: Video frame rate.
+        """
         json_path = Path(output_path).parent / "gaze_data.json"
+
+        # Build track summaries
+        track_summaries = []
+        for stats in sorted(track_registry.values(), key=lambda s: s.track_id):
+            duration_frames = stats.last_seen_frame - stats.first_seen_frame + 1
+            duration_seconds = (
+                duration_frames / effective_fps if effective_fps else duration_frames
+            )
+            track_summaries.append({
+                "track_id": stats.track_id,
+                "first_frame": stats.first_seen_frame,
+                "last_frame": stats.last_seen_frame,
+                "frames_visible": stats.frames_visible,
+                "roi_hits": stats.roi_hits,
+                "ever_in_roi": stats.ever_in_roi,
+                "roi_rate": round(
+                    stats.roi_hits / stats.frames_visible
+                    if stats.frames_visible else 0.0,
+                    3,
+                ),
+                "duration_sec": round(duration_seconds, 3),
+            })
+
+        # Compute summary statistics
         total_non_roi = max(total_faces_detected - total_roi_hits, 0)
         roi_engagement_rate = (
             total_roi_hits / total_faces_detected if total_faces_detected else 0.0
         )
-        track_summaries = []
-        for stats in sorted(track_registry.values(), key=lambda item: item["track_id"]):
-            duration_frames = stats["last_seen_frame"] - stats["first_seen_frame"] + 1
-            duration_seconds = (
-                duration_frames / effective_fps if effective_fps else duration_frames
-            )
-            track_summaries.append(
-                {
-                    "track_id": stats["track_id"],
-                    "first_frame": stats["first_seen_frame"],
-                    "last_frame": stats["last_seen_frame"],
-                    "frames_visible": stats["frames_visible"],
-                    "roi_hits": stats["roi_hits"],
-                    "ever_in_roi": stats["ever_in_roi"],
-                    "roi_rate": round(
-                        stats["roi_hits"] / stats["frames_visible"]
-                        if stats["frames_visible"]
-                        else 0.0,
-                        3,
-                    ),
-                    "duration_sec": round(duration_seconds, 3),
-                }
-            )
-
         unique_tracks_total = len(track_summaries)
-        unique_tracks_roi = sum(1 for stats in track_summaries if stats["ever_in_roi"])
+        unique_tracks_roi = sum(1 for s in track_summaries if s["ever_in_roi"])
         unique_tracks_non_roi = unique_tracks_total - unique_tracks_roi
         unique_roi_engagement_rate = (
             unique_tracks_roi / unique_tracks_total if unique_tracks_total else 0.0
         )
-        # Compact payload with short keys and no redundant data
-        # Key mapping for detections: f=frame, t=track_id, b=bbox, h=head_pose, g=gazepoint, r=in_roi
-        # Timestamps can be derived: timestamp = frame / fps
+
+        # Build payload
         gaze_payload = {
             "meta": {
                 "fps": round(effective_fps, 3),
@@ -442,13 +265,13 @@ class GazeEstimationService:
                 "unique_roi_rate": round(unique_roi_engagement_rate, 3),
             },
         }
-        # Compact JSON (no indent) for smaller file size
+
+        # Write compact JSON
         with open(json_path, "w") as f:
             json.dump(gaze_payload, f, separators=(",", ":"))
 
-        logging.info(f"Output saved to: {output_path}")
         logging.info(f"Gaze data saved to: {json_path}")
 
 
-# Global service instance
+# Global service instance (backward compatibility)
 gaze_service = GazeEstimationService()
