@@ -4,7 +4,14 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 import subprocess
+import torch
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 
+from api.models import JobStatus, JobInfo, UploadResponse, HealthResponse
+from api.job_manager import JobManager
+from api.gaze_service import gaze_service
+from api.discord_webhook import send_job_notification
 
 from fastapi import (
     FastAPI,
@@ -14,10 +21,6 @@ from fastapi import (
     BackgroundTasks,
     Query,
 )
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-
-import torch
 
 from api.config import (
     MAX_FILE_SIZE,
@@ -33,11 +36,6 @@ from api.config import (
     ensure_directories,
     CLEANUP_INTERVAL_HOURS,
 )
-from api.models import JobStatus, JobInfo, UploadResponse, HealthResponse
-from api.job_manager import JobManager
-from api.gaze_service import gaze_service
-from api.discord_webhook import send_job_notification
-
 
 # Initialize FastAPI app
 app = FastAPI(

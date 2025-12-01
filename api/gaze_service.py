@@ -4,7 +4,6 @@ import logging
 import numpy as np
 import json
 from pathlib import Path
-
 import torch
 import torch.nn.functional as F
 from torchvision import transforms
@@ -23,14 +22,44 @@ sys.path.insert(
 )
 
 from utils.helpers import get_model, draw_bbox_gaze
-import uniface
+
+# Add mog-eyecontact to path
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).parent.parent
+        / "mog-eyecontact"
+    ),
+)
+from src.models.mogface import MogFaceDetector
+from src.config import Config as MogConfig, load_config
+
+
+class MogFaceAdapter:
+    """Adapts MogFaceDetector to return list of dicts expected by GazeEstimationService."""
+    def __init__(self, detector):
+        self.detector = detector
+
+    def detect(self, image):
+        # MogFace returns numpy array: [[x1, y1, x2, y2, score], ...]
+        detections = self.detector.detect(image)
+        results = []
+        if detections is not None and len(detections) > 0:
+            for det in detections:
+                results.append({
+                    "bbox": det[:4].tolist(),
+                    "score": float(det[4])
+                })
+        return results
+
+
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 class GazeEstimationService:
     def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         self.face_detector = None
         self.gaze_detector = None
         self.current_model = None
@@ -47,19 +76,31 @@ class GazeEstimationService:
                 self.gaze_detector.to(self.device)
                 self.gaze_detector.eval()
                 self.current_model = model_name
-                self.idx_tensor = torch.arange(
-                    bins, device=self.device, dtype=torch.float32
-                )
+                self.idx_tensor = torch.arange(bins, device=self.device, dtype=torch.float32)
                 logging.info("Model loaded successfully")
             except Exception as e:
                 logging.error(f"Error loading model: {e}")
                 raise
 
+    
     def load_face_detector(self):
-        """Load face detector (singleton pattern)."""
+        """
+        Load MogFace detector into this class instance
+        """
         if self.face_detector is None:
-            logging.info("Loading face detector")
-            self.face_detector = uniface.RetinaFace()
+            logging.info("Loading MogFaceDetector")
+
+            # Load config from backend/mog-eyecontact/config/config.yml
+            config_path = Path(__file__).parent.parent / "mog-eyecontact" / "config" / "config.yml"
+            config = load_config(config_path)
+            
+            detector = MogFaceDetector(
+                model_path=str(config.path("mogface_weights")),
+                config=config,
+                device=self.device)
+            
+            self.face_detector = MogFaceAdapter(detector)
+
 
     def pre_process(self, image):
         """Preprocess face image for gaze estimation."""

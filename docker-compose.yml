@@ -13,12 +13,13 @@ services:
       - ./gaze-estimation-testing-main/gaze-estimation/weights:/app/gaze-estimation-testing-main/gaze-estimation/weights:ro
       # Allow hot-reload during development (optional, comment out for production)
       - ./api:/app/api
+      - ./mog-eyecontact:/app/mog-eyecontact
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -37,4 +38,3 @@ services:
 #             - driver: nvidia
 #               count: 1
 #               capabilities: [gpu]
-
