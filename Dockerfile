@@ -33,6 +33,10 @@ RUN mkdir -p gaze-estimation-testing-main/gaze-estimation/weights
 # Create storage directories
 RUN mkdir -p storage/uploads storage/outputs
 
+# Pre-download uniface (RetinaFace) model to avoid download on first run
+# The model will be cached in /root/.uniface/models and can be persisted via volume mount
+RUN python -c "import uniface; uniface.RetinaFace()" || echo "Uniface model pre-download (will use volume mount)"
+
 # Copy startup script
 COPY start_server.sh /app/start_server.sh
 RUN chmod +x /app/start_server.sh

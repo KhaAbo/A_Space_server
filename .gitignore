@@ -41,6 +41,10 @@ test_output.mp4
 # gaze-estimation-testing-main/gaze-estimation/weights/*.pt
 # gaze-estimation-testing-main/gaze-estimation/weights/*.onnx
 
+# Uniface (RetinaFace) cached models - persisted via Docker volume
+uniface-models/*
+!uniface-models/.gitkeep
+
 # Environment variables
 .env
 .env.local
