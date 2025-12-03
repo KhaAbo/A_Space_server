@@ -418,7 +418,3 @@ class MogPredNet(nn.Module):
                 )
         
         return output
-            
-        return output
-
-
