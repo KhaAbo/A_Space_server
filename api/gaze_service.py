@@ -51,12 +51,11 @@ class GazeEstimationService:
         """Expose face detector for backward compatibility."""
         return self.pipeline.face_detector
 
-    def load_model(self, model_name: str, bins: int, weight_path: str) -> None:
-        """Load the gaze estimation model (backward compatibility).
+    def load_model(self, model_name: str, weight_path: str) -> None:
+        """Load the gaze estimation model.
 
         Args:
             model_name: Name of the model architecture.
-            bins: Number of bins (ignored, uses config).
             weight_path: Path to model weights.
         """
         self.pipeline._load_gaze_model(model_name, weight_path)
@@ -70,9 +69,6 @@ class GazeEstimationService:
         input_path: str,
         output_path: str,
         model_name: str,
-        bins: int,
-        binwidth: int,
-        angle: int,
         weight_path: str,
         progress_callback: Callable[[int, int], None] | None = None,
     ) -> None:
@@ -82,9 +78,6 @@ class GazeEstimationService:
             input_path: Path to input video.
             output_path: Path to save processed video.
             model_name: Name of the model to use.
-            bins: Number of bins (ignored, uses config).
-            binwidth: Width of each bin (ignored, uses config).
-            angle: Angle offset (ignored, uses config).
             weight_path: Path to model weights.
             progress_callback: Optional callback(total_frames, processed_frames).
         """

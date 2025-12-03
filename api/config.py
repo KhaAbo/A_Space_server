@@ -28,12 +28,6 @@ ALLOWED_FORMATS = [".mp4", ".mov", ".avi"]
 DEFAULT_MODEL = "resnet50"
 SUPPORTED_MODELS = ["resnet18", "resnet50", "mobileone_s0"]
 
-# Dataset configuration (fixed to gaze360)
-DATASET = "gaze360"
-BINS = 90
-BINWIDTH = 4
-ANGLE = 180
-
 # Cleanup settings
 CLEANUP_INTERVAL_HOURS = 1
 FILE_RETENTION_HOURS = 24
