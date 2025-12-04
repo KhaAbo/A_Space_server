@@ -47,10 +47,12 @@ results/*.avi
 gaze-estimation/weights/*.pt
 gaze-estimation/weights/*.pth
 gaze-estimation/weights/*.onnx
+gazelle/weights/*.pt
 
 # Dataset folders (very large)
 gaze-estimation/data/Gaze360/
 gaze-estimation/data/MPIIFaceGaze/
+
 
 # OS specific
 .DS_Store

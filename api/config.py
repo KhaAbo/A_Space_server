@@ -19,6 +19,8 @@ JOBS_FILE = STORAGE_DIR / "jobs.json"
 # Gaze estimation paths
 GAZE_ESTIMATION_DIR = BASE_DIR / "gaze-estimation-testing-main" / "gaze-estimation"
 WEIGHTS_DIR = GAZE_ESTIMATION_DIR / "weights"
+# Complete line with filename:
+GAZELLE_WEIGHTS = BASE_DIR / "gaze-estimation-testing-main" / "gazelle" / "weights" / "gazelle_dinov2_vitl14_inout.pt"
 
 # File upload settings
 MAX_FILE_SIZE = 1024 * 1024 * 1024  # 1GB in bytes
@@ -26,7 +28,9 @@ ALLOWED_FORMATS = [".mp4", ".mov", ".avi"]
 
 # Model settings
 DEFAULT_MODEL = "resnet50"
-SUPPORTED_MODELS = ["resnet18", "resnet50", "mobileone_s0"]
+Updated upstream
+SUPPORTED_MODELS = ["resnet18", "resnet50", "mobileone_s0","gazelle"]
+
 
 # Dataset configuration (fixed to gaze360)
 DATASET = "gaze360"

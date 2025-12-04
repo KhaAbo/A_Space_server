@@ -32,6 +32,7 @@ from api.config import (
     WEIGHTS_DIR,
     ensure_directories,
     CLEANUP_INTERVAL_HOURS,
+    GAZELLE_WEIGHTS
 )
 from api.models import JobStatus, JobInfo, UploadResponse, HealthResponse
 from api.job_manager import JobManager
@@ -90,50 +91,117 @@ async def periodic_cleanup():
             print(f"Periodic cleanup: removed {cleaned} old jobs")
 
 
+# async def process_video_background(job_id: str, input_path: Path, model: str):
+#     """Background task to process video."""
+#     async with processing_lock:  # Ensure only one video processes at a time
+#         try:
+#             # Update status to processing
+#             job_manager.update_job_status(job_id, JobStatus.PROCESSING)
+
+#             # Setup paths
+#             output_dir = OUTPUTS_DIR / job_id
+#             output_dir.mkdir(parents=True, exist_ok=True)
+#             output_path = output_dir / "processed.mp4"
+
+#             # Get weight path
+#             weight_path = WEIGHTS_DIR / f"{model}.pt"
+#             if not weight_path.exists():
+#                 raise FileNotFoundError(f"Model weights not found: {weight_path}")
+
+#             # Create progress callback function
+#             def progress_callback(total_frames: int, processed_frames: int):
+#                 """Callback to update job progress."""
+#                 job_manager.update_progress(job_id, total_frames, processed_frames)
+
+#             # Process video (blocking call in executor to not block event loop)
+#             loop = asyncio.get_event_loop()
+#             await loop.run_in_executor(
+#                 None,
+#                 gaze_service.process_video,
+#                 str(input_path),
+#                 str(output_path),
+#                 model,
+#                 BINS,
+#                 BINWIDTH,
+#                 ANGLE,
+#                 str(weight_path),
+#                 progress_callback,
+#             )
+
+#             # Add faststart atom for streaming compatibility
+#             await add_faststart_to_video(output_path)
+
+#             # Update status to completed
+#             job_manager.update_job_status(job_id, JobStatus.COMPLETED)
+
+#             # Send Discord webhook notification
+#             job = job_manager.get_job(job_id)
+#             if job:
+#                 asyncio.create_task(send_job_notification(job))
+
+#         except Exception as e:
+#             error_msg = str(e)
+#             print(f"Error processing job {job_id}: {error_msg}")
+#             job_manager.update_job_status(job_id, JobStatus.FAILED, error=error_msg)
+
+#             # Send Discord webhook notification
+#             job = job_manager.get_job(job_id)
+#             if job:
+#                 asyncio.create_task(send_job_notification(job))
+
+
 async def process_video_background(job_id: str, input_path: Path, model: str):
     """Background task to process video."""
-    async with processing_lock:  # Ensure only one video processes at a time
+    async with processing_lock:
         try:
-            # Update status to processing
             job_manager.update_job_status(job_id, JobStatus.PROCESSING)
 
-            # Setup paths
             output_dir = OUTPUTS_DIR / job_id
             output_dir.mkdir(parents=True, exist_ok=True)
             output_path = output_dir / "processed.mp4"
 
-            # Get weight path
-            weight_path = WEIGHTS_DIR / f"{model}.pt"
-            if not weight_path.exists():
-                raise FileNotFoundError(f"Model weights not found: {weight_path}")
-
-            # Create progress callback function
             def progress_callback(total_frames: int, processed_frames: int):
-                """Callback to update job progress."""
                 job_manager.update_progress(job_id, total_frames, processed_frames)
 
-            # Process video (blocking call in executor to not block event loop)
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                gaze_service.process_video,
-                str(input_path),
-                str(output_path),
-                model,
-                BINS,
-                BINWIDTH,
-                ANGLE,
-                str(weight_path),
-                progress_callback,
-            )
+            
+            if model == "gazelle":
+                # Use Gazelle service
+                from api.gazelle_service import gazelle_service
+                
+                if not GAZELLE_WEIGHTS.exists():
+                    raise FileNotFoundError(f"Gazelle weights not found: {GAZELLE_WEIGHTS}")
+                
+                await loop.run_in_executor(
+                    None,
+                    gazelle_service.process_video,
+                    str(input_path),
+                    str(output_path),
+                    str(GAZELLE_WEIGHTS),
+                    progress_callback,
+                )
+            else:
+                # Use existing gaze estimation service
+                weight_path = WEIGHTS_DIR / f"{model}.pt"
+                if not weight_path.exists():
+                    raise FileNotFoundError(f"Model weights not found: {weight_path}")
 
-            # Add faststart atom for streaming compatibility
+                await loop.run_in_executor(
+                    None,
+                    gaze_service.process_video,
+                    str(input_path),
+                    str(output_path),
+                    model,
+                    BINS,
+                    BINWIDTH,
+                    ANGLE,
+                    str(weight_path),
+                    progress_callback,
+                )
+
             await add_faststart_to_video(output_path)
-
-            # Update status to completed
             job_manager.update_job_status(job_id, JobStatus.COMPLETED)
 
-            # Send Discord webhook notification
             job = job_manager.get_job(job_id)
             if job:
                 asyncio.create_task(send_job_notification(job))
@@ -143,7 +211,6 @@ async def process_video_background(job_id: str, input_path: Path, model: str):
             print(f"Error processing job {job_id}: {error_msg}")
             job_manager.update_job_status(job_id, JobStatus.FAILED, error=error_msg)
 
-            # Send Discord webhook notification
             job = job_manager.get_job(job_id)
             if job:
                 asyncio.create_task(send_job_notification(job))

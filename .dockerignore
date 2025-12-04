@@ -52,6 +52,10 @@ start_api.bat
 gaze-estimation-testing-main/gaze-estimation/weights/*.pt
 gaze-estimation-testing-main/gaze-estimation/weights/*.onnx
 
+# Gazelle weights - will be mounted as volume, not copied into image
+gaze-estimation-testing-main/gazelle/weights/*.pt
+
+
 # Keep only essential files
 !api/
 !gaze-estimation-testing-main/
