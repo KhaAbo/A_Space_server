@@ -26,10 +26,12 @@ RUN pip install --no-cache-dir -r requirements-docker.txt
 # Copy application code
 COPY api/ ./api/
 COPY mog-eyecontact/ ./mog-eyecontact/
-COPY gaze-estimation-testing-main/ ./gaze-estimation-testing-main/
+COPY mobilegaze/ ./mobilegaze/
+
 
 # Create directories for weights (will be mounted as volume)
-RUN mkdir -p gaze-estimation-testing-main/gaze-estimation/weights
+RUN mkdir -p mobilegaze/weights
+
 
 # Create storage directories
 RUN mkdir -p storage/uploads storage/outputs

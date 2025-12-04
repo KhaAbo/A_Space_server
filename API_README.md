@@ -19,7 +19,8 @@ A FastAPI-based service for video gaze estimation using deep learning models.
 First, install the base gaze estimation dependencies:
 
 ```bash
-pip install -r gaze-estimation-testing-main/gaze-estimation/requirements.txt
+pip install -r mobilegaze/requirements.txt
+
 ```
 
 Then install the API dependencies:
@@ -33,7 +34,8 @@ pip install -r requirements-api.txt
 Make sure you have model weights downloaded in:
 
 ```
-gaze-estimation-testing-main/gaze-estimation/weights/resnet50.pt
+mobilegaze/weights/resnet50.pt
+
 ```
 
 ### 3. Start the API Server
@@ -380,7 +382,8 @@ uvicorn api.main:app --reload --port 8001
 
 ```bash
 # Ensure weights exist
-ls gaze-estimation-testing-main/gaze-estimation/weights/resnet50.pt
+ls mobilegaze/weights/resnet50.pt
+
 ```
 
 ### Import errors
@@ -388,7 +391,8 @@ ls gaze-estimation-testing-main/gaze-estimation/weights/resnet50.pt
 ```bash
 # Reinstall dependencies
 pip install -r requirements-api.txt
-pip install -r gaze-estimation-testing-main/gaze-estimation/requirements.txt
+pip install -r mobilegaze/requirements.txt
+
 ```
 
 ### GPU not detected
@@ -417,7 +421,8 @@ FastAPI automatically generates interactive documentation:
 ### Adding New Models
 
 1. Add model name to `SUPPORTED_MODELS` in `api/config.py`
-2. Ensure weights exist in `gaze-estimation/weights/{model}.pt`
+2. Ensure weights exist in `mobilegaze/weights/{model}.pt`
+
 3. Model will be automatically available in upload endpoint
 
 ### Logging

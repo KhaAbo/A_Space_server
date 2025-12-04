@@ -13,7 +13,7 @@ OUTPUTS_DIR = STORAGE_DIR / "outputs"
 JOBS_FILE = STORAGE_DIR / "jobs.json"
 
 # Robin's model
-MOBILEGAZE_DIR = f"{BASE_DIR}/gaze-estimation-testing-main/gaze-estimation"
+MOBILEGAZE_DIR = f"{BASE_DIR}/mobilegaze"
 MOBILEGAZE_CONFIG = f"{MOBILEGAZE_DIR}/config/gaze_config.yml"
 
 # Björn's model

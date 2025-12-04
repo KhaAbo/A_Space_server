@@ -16,14 +16,16 @@ echo ""
 
 # Check if model weights exist
 echo "📦 Checking model weights..."
-if [ -f "gaze-estimation-testing-main/gaze-estimation/weights/resnet50.pt" ]; then
+if [ -f "mobilegaze/weights/resnet50.pt" ]; then
+
     echo "✅ resnet50.pt found"
 else
     echo "❌ resnet50.pt not found - run 'git lfs pull'"
     exit 1
 fi
 
-if [ -f "gaze-estimation-testing-main/gaze-estimation/weights/mobileone_s0_gaze.onnx" ]; then
+if [ -f "mobilegaze/weights/mobileone_s0_gaze.onnx" ]; then
+
     echo "✅ mobileone_s0_gaze.onnx found"
 else
     echo "⚠️  mobileone_s0_gaze.onnx not found"

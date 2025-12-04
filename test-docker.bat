@@ -17,14 +17,16 @@ echo.
 
 REM Check if model weights exist
 echo 📦 Checking model weights...
-if exist "gaze-estimation-testing-main\gaze-estimation\weights\resnet50.pt" (
+if exist "mobilegaze\weights\resnet50.pt" (
+
     echo ✅ resnet50.pt found
 ) else (
     echo ❌ resnet50.pt not found - run 'git lfs pull'
     exit /b 1
 )
 
-if exist "gaze-estimation-testing-main\gaze-estimation\weights\mobileone_s0_gaze.onnx" (
+if exist "mobilegaze\weights\mobileone_s0_gaze.onnx" (
+
     echo ✅ mobileone_s0_gaze.onnx found
 ) else (
     echo ⚠️  mobileone_s0_gaze.onnx not found

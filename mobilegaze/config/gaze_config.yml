@@ -1,0 +1,71 @@
+# ============================================================================
+# Gaze Estimation Pipeline - Unified Configuration
+# ============================================================================
+
+# Paths Configuration (relative to mobilegaze folder)
+paths:
+  weights_dir: "weights"
+  gaze_weights: "weights/resnet50.pt"
+
+# Device Configuration
+device:
+  default: null  # auto-detect: cuda > mps > cpu
+  # Options: "cpu", "cuda", "mps", or null for auto-detection
+
+# Gaze Model Configuration
+gaze_model:
+  # Model architecture
+  model_name: "resnet50"
+  
+  # Dataset configuration (gaze360)
+  bins: 90
+  binwidth: 4
+  angle: 180  # angle range
+  
+  # Image preprocessing
+  image_size: 448
+  img_mean: [0.485, 0.456, 0.406]
+  img_std: [0.229, 0.224, 0.225]
+
+# ROI (Region of Interest) Configuration
+roi:
+  # Margins as fraction of frame dimensions
+  horizontal_margin: 0.1   # leave edges of frame
+  top_margin: 0.35         # assume webcam sits above the screen area
+  footer_margin: 0.05      # small footer margin
+
+# Tracker Configuration (BYTETracker)
+tracker:
+  track_thresh: 0.3        # detection confidence threshold
+  track_buffer: 30         # frames to keep lost tracks
+  match_thresh: 0.8        # IOU threshold for matching
+
+# Visualization Configuration
+visualization:
+  # Colors (BGR format)
+  roi_active_color: [0, 200, 0]      # Green when looking at ROI
+  roi_inactive_color: [0, 0, 255]    # Red when not looking
+  gazepoint_in_roi: [0, 220, 0]      # Gazepoint dot - in ROI
+  gazepoint_out_roi: [0, 0, 255]     # Gazepoint dot - out of ROI
+  gazepoint_outline: [0, 0, 0]       # Black outline for gazepoint
+  
+  # Gazepoint settings
+  gazepoint_radius: 10
+  gazepoint_outline_radius: 12
+  
+  # Bounding box
+  roi_thickness: 3
+  
+  # Text settings
+  font_scale: 0.6
+  font_scale_roi: 0.75
+  font_thickness: 2
+  text_offset_y: 10
+
+# Video Processing Configuration
+video:
+  output_codec: "mp4v"
+  default_fps: 30.0        # fallback FPS if not detected
+  progress_interval: 10    # update progress every N frames
+  log_interval: 30         # log progress every N frames
+

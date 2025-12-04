@@ -10,7 +10,7 @@ services:
       # Persist storage data
       - ./storage:/app/storage
       # Mount model weights (too large to include in image)
-      - ./gaze-estimation-testing-main/gaze-estimation/weights:/app/gaze-estimation-testing-main/gaze-estimation/weights:ro
+      - ./mobilegaze/weights:/app/mobilegaze/weights:ro
       # Allow hot-reload during development (optional, comment out for production)
       - ./api:/app/api
       - ./mog-eyecontact:/app/mog-eyecontact

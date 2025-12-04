@@ -11,7 +11,7 @@ import cv2
 # Add external modules to path
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 EXTERNAL_MODULES = [
-    "gaze-estimation-testing-main/gaze-estimation",
+    "mobilegaze",
     "mog-eyecontact",
 ]
 
