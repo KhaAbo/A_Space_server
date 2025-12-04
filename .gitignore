@@ -36,10 +36,20 @@ Thumbs.db
 test_output.mp4
 *.mp4
 
+# Gazelle weights (too large for git)
+gaze-estimation-testing-main/gazelle/weights/*.pt
+
+# Torch hub cache (if accidentally added)
+.cache/
+
 # Model weights (large files - keep only essential ones)
 # Uncomment these if you want to exclude weights:
 # gaze-estimation-testing-main/gaze-estimation/weights/*.pt
 # gaze-estimation-testing-main/gaze-estimation/weights/*.onnx
+
+# Uniface (RetinaFace) cached models - persisted via Docker volume
+uniface-models/*
+!uniface-models/.gitkeep
 
 # Environment variables
 .env

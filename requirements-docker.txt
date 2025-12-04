@@ -6,6 +6,9 @@ pydantic==2.12.4
 pydantic_core==2.41.5
 python-multipart==0.0.9
 
+#Gazelle dependencies
+timm==0.9.12
+
 # FastAPI/Starlette transitive dependencies
 annotated-types==0.7.0
 anyio==4.11.0
@@ -25,6 +28,8 @@ ml_dtypes==0.5.3
 # Computer Vision
 opencv-python==4.12.0.88
 pillow==11.3.0
+matplotlib==3.9.0
+scikit-learn==1.5.1
 
 # Face detection
 uniface==1.1.0
