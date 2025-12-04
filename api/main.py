@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 import subprocess
 import torch
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.models import JobStatus, JobInfo, UploadResponse, HealthResponse
@@ -450,9 +450,7 @@ async def delete_job(job_id: str):
 
     job_manager.delete_job(job_id)
 
-    return JSONResponse(
-        status_code=204, content={"message": "Job deleted successfully"}
-    )
+    return Response(status_code=204)
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -461,7 +459,7 @@ async def health_check():
     Check API health and system status.
     """
     gpu_available = torch.cuda.is_available()
-    model_loaded = gaze_service.gaze_detector is not None
+    model_loaded = gaze_service.pipeline.gaze_detector is not None
 
     return HealthResponse(
         status="healthy",
