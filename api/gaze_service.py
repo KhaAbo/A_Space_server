@@ -80,14 +80,7 @@ class GazeEstimationService:
         self.config = get_config()
         self.pipeline = GazeEstimationPipeline(self.config) # todo: adjust this to both fit MobileGaze and EyeContactCNN
 
-        Args:
-            config: Optional configuration. Uses default if None.
-        """
-        self.config = config or get_config()
-        self.pipeline = GazeEstimationPipeline(self.config)
 
-        # Expose device for compatibility
-        self.device = self.pipeline.device
 
     @property
     def gaze_detector(self):

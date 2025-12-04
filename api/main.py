@@ -29,7 +29,6 @@ from api.config import (
     SUPPORTED_MODELS,
     UPLOADS_DIR,
     OUTPUTS_DIR,
-    WEIGHTS_DIR,
     ensure_directories,
     CLEANUP_INTERVAL_HOURS,
 )
@@ -117,8 +116,8 @@ async def process_video_background(
                 gaze_model,
                 str(input_path),
                 str(output_path),
-                model,
-                str(weight_path),
+                "unused_model_name",
+                "unused_weight_path",
                 progress_callback,
             )
 
