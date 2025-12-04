@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.models import JobStatus, JobInfo, UploadResponse, HealthResponse
 from api.job_manager import JobManager
-from api.gaze_service import gaze_service
+from api.gaze_service import gaze_service, FaceDetectorModel, GazeDetectorModel
 from api.discord_webhook import send_job_notification
 
 from fastapi import (
@@ -29,10 +29,6 @@ from api.config import (
     SUPPORTED_MODELS,
     UPLOADS_DIR,
     OUTPUTS_DIR,
-    BINS,
-    BINWIDTH,
-    ANGLE,
-    WEIGHTS_DIR,
     ensure_directories,
     CLEANUP_INTERVAL_HOURS,
 )
@@ -88,7 +84,12 @@ async def periodic_cleanup():
             print(f"Periodic cleanup: removed {cleaned} old jobs")
 
 
-async def process_video_background(job_id: str, input_path: Path, model: str):
+async def process_video_background(
+    job_id: str,
+    input_path: Path,
+    face_model: FaceDetectorModel,
+    gaze_model: GazeDetectorModel,
+):
     """Background task to process video."""
     async with processing_lock:  # Ensure only one video processes at a time
         try:
@@ -100,28 +101,21 @@ async def process_video_background(job_id: str, input_path: Path, model: str):
             output_dir.mkdir(parents=True, exist_ok=True)
             output_path = output_dir / "processed.mp4"
 
-            # Get weight path
-            weight_path = WEIGHTS_DIR / f"{model}.pt"
-            if not weight_path.exists():
-                raise FileNotFoundError(f"Model weights not found: {weight_path}")
-
-            # Create progress callback function
-            def progress_callback(total_frames: int, processed_frames: int):
-                """Callback to update job progress."""
-                job_manager.update_progress(job_id, total_frames, processed_frames)
+            # Define progress callback
+            def progress_callback(total_frames, processed_frames):
+                job_manager.update_progress(
+                    job_id, total_frames=total_frames, processed_frames=processed_frames
+                )
 
             # Process video (blocking call in executor to not block event loop)
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(
                 None,
                 gaze_service.process_video,
+                face_model,
+                gaze_model,
                 str(input_path),
                 str(output_path),
-                model,
-                BINS,
-                BINWIDTH,
-                ANGLE,
-                str(weight_path),
                 progress_callback,
             )
 
@@ -151,21 +145,16 @@ async def process_video_background(job_id: str, input_path: Path, model: str):
 async def upload_video(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    model: str = DEFAULT_MODEL,
+    face_model: FaceDetectorModel = FaceDetectorModel.MogFace,
+    gaze_model: GazeDetectorModel = GazeDetectorModel.MobileGaze,
 ):
     """
     Upload a video file for gaze estimation processing.
 
     - **file**: Video file (.mp4, .mov, .avi)
-    - **model**: Model to use (default: resnet50)
+    - **face_model**: Face detector model (RetinaFace, MogFace)
+    - **gaze_model**: Gaze detector model (MobileGaze, EyeContactCNN)
     """
-    # Validate model
-    if model not in SUPPORTED_MODELS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid model. Supported models: {', '.join(SUPPORTED_MODELS)}",
-        )
-
     # Validate file format
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in ALLOWED_FORMATS:
@@ -205,10 +194,14 @@ async def upload_video(
         raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
 
     # Create job record
-    job_manager.create_job(job_id, file.filename, model)
+    job_manager.create_job(
+        job_id, file.filename, face_model=face_model, gaze_model=gaze_model
+    )
 
     # Start background processing
-    background_tasks.add_task(process_video_background, job_id, file_path, model)
+    background_tasks.add_task(
+        process_video_background, job_id, file_path, face_model, gaze_model
+    )
 
     return UploadResponse(
         job_id=job_id, message="Video uploaded successfully. Processing started."
@@ -232,6 +225,8 @@ async def get_all_jobs():
             status=JobStatus(job["status"]),
             filename=job["filename"],
             model=job["model"],
+            face_model=job.get("face_model"),
+            gaze_model=job.get("gaze_model"),
             created_at=datetime.fromisoformat(job["created_at"]),
             started_at=(
                 datetime.fromisoformat(job["started_at"]) if job["started_at"] else None
@@ -269,6 +264,8 @@ async def get_job_status(job_id: str):
         status=JobStatus(job["status"]),
         filename=job["filename"],
         model=job["model"],
+        face_model=job.get("face_model"),
+        gaze_model=job.get("gaze_model"),
         created_at=datetime.fromisoformat(job["created_at"]),
         started_at=(
             datetime.fromisoformat(job["started_at"]) if job["started_at"] else None

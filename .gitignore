@@ -10,11 +10,8 @@ build/
 .pytest_cache/
 
 # Virtual Environment
-venv/
-env/
-ENV/
+venv
 .venv
-.env
 
 # Storage (temporary files managed by API)
 storage/uploads/
@@ -32,8 +29,7 @@ storage/jobs.json
 .DS_Store
 Thumbs.db
 
-# Test outputs
-test_output.mp4
+# Videos
 *.mp4
 
 # Model weights (large files - keep only essential ones)
@@ -43,7 +39,6 @@ test_output.mp4
 
 # Environment variables
 .env
-.env.local
 
 # Logs
 *.log

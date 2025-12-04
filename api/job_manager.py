@@ -34,13 +34,22 @@ class JobManager:
         except Exception as e:
             print(f"Error saving jobs: {e}")
 
-    def create_job(self, job_id: str, filename: str, model: str) -> dict:
+    def create_job(
+        self,
+        job_id: str,
+        filename: str,
+        face_model: str,
+        gaze_model: str,
+        model: str = "custom",
+    ) -> dict:
         """Create a new job."""
         job = {
             "job_id": job_id,
             "status": JobStatus.PENDING,
             "filename": filename,
             "model": model,
+            "face_model": face_model,
+            "gaze_model": gaze_model,
             "created_at": datetime.now().isoformat(),
             "started_at": None,
             "completed_at": None,

@@ -73,8 +73,13 @@ async def send_job_notification(job_data: dict) -> None:
                 "inline": True
             },
             {
-                "name": "Model",
-                "value": job_data.get("model", "N/A"),
+                "name": "Face Model",
+                "value": job_data.get("face_model", "N/A"),
+                "inline": True
+            },
+            {
+                "name": "Gaze Model",
+                "value": job_data.get("gaze_model", "N/A"),
                 "inline": True
             }
         ]

@@ -15,7 +15,9 @@ class JobInfo(BaseModel):
     job_id: str
     status: JobStatus
     filename: str
-    model: str
+    model: str # Legacy field
+    face_model: Optional[str] = None
+    gaze_model: Optional[str] = None
     created_at: datetime
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None

@@ -94,7 +94,7 @@ class GazeEstimationPipeline:
 
         return transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize(img_size),
+            transforms.Resize((img_size, img_size)),
             transforms.ToTensor(),
             transforms.Normalize(mean=img_mean, std=img_std),
         ])
@@ -140,7 +140,6 @@ class GazeEstimationPipeline:
             return  # Already loaded
 
         try:
-            logging.info(f"Loading gaze model: {model_name}")
             self.gaze_detector = get_model(model_name, bins, inference_mode=True)
             state_dict = torch.load(weight_path, map_location=self.device)
             self.gaze_detector.load_state_dict(state_dict)
@@ -150,7 +149,6 @@ class GazeEstimationPipeline:
             self.idx_tensor = torch.arange(
                 bins, device=self.device, dtype=torch.float32
             )
-            logging.info("Gaze model loaded successfully")
         except Exception as e:
             logging.error(f"Error loading gaze model: {e}")
             raise
@@ -357,18 +355,35 @@ class GazeEstimationPipeline:
                 face_center = (det["x_center"], det["y_center"])
                 face_image = det["face_image"]
 
-                # Estimate gaze
-                face_tensor = self.preprocess_face(face_image)
-                pitch_rad, yaw_rad = self.estimate_gaze(face_tensor)
+                # Initialize variables
+                pitch_rad = 0.0
+                yaw_rad = 0.0
+                gazepoint = (0, 0)
+                in_roi = False
+                
+                # Check if using EyeContactEstimator (has estimate method)
+                if hasattr(self.gaze_detector, "estimate"):
+                    # Eye Contact Estimation
+                    score = self.gaze_detector.estimate(face_image)
+                    in_roi = score > 0.5
+                    
+                    # Optional: Draw score
+                    # cv2.putText(frame, f"{score:.2f}", (bbox[0], bbox[1]-10), 
+                    #             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                else:
+                    # Gaze Estimation
+                    face_tensor = self.preprocess_face(face_image)
+                    pitch_rad, yaw_rad = self.estimate_gaze(face_tensor)
 
-                # Draw gaze vector
-                draw_bbox_gaze(frame, bbox, pitch_rad, yaw_rad)
+                    # Draw gaze vector
+                    draw_bbox_gaze(frame, bbox, pitch_rad, yaw_rad)
 
-                # Compute gazepoint
-                gazepoint = self.compute_gazepoint(
-                    face_center, pitch_rad, yaw_rad, float(width)
-                )
-                in_roi = is_point_in_roi(gazepoint, roi_bounds)
+                    # Compute gazepoint
+                    gazepoint = self.compute_gazepoint(
+                        face_center, pitch_rad, yaw_rad, float(width)
+                    )
+                    in_roi = is_point_in_roi(gazepoint, roi_bounds)
+
                 frame_roi_hits.append(in_roi)
 
                 # Get track ID
@@ -395,18 +410,25 @@ class GazeEstimationPipeline:
                     stats.ever_in_roi = stats.ever_in_roi or in_roi
 
                 # Draw visualizations
-                draw_gazepoint(frame, gazepoint, in_roi, self._vis_cfg)
+                if not hasattr(self.gaze_detector, "estimate"):
+                    draw_gazepoint(frame, gazepoint, in_roi, self._vis_cfg)
+                
                 draw_face_status(frame, bbox, track_id, in_roi, self._vis_cfg)
 
                 # Record detection (only if looking at ROI)
                 if in_roi:
-                    detections.append({
+                    detection_data = {
                         "frame": frame_count,
                         "track_id": track_id,
                         "bbox": [int(x) for x in bbox],
-                        "head_pose": [round(yaw_rad, 3), round(pitch_rad, 3)],
-                        "gazepoint": list(gazepoint),
-                    })
+                    }
+                    
+                    # Add gaze data if available
+                    if not hasattr(self.gaze_detector, "estimate"):
+                        detection_data["head_pose"] = [round(yaw_rad, 3), round(pitch_rad, 3)]
+                        detection_data["gazepoint"] = list(gazepoint)
+                        
+                    detections.append(detection_data)
 
         # Draw ROI
         draw_roi(frame, roi_bounds, any(frame_roi_hits), self._vis_cfg)
@@ -417,4 +439,3 @@ class GazeEstimationPipeline:
             roi_hits=int(sum(frame_roi_hits)),
             total_faces=len(valid_detections),
         )
-

@@ -9,11 +9,6 @@ paths:
   eye_contact_weights: "weights/eye_contact.pkl"
   data_dir: "data"
 
-# Device Configuration
-device:
-  default: null  # auto-detect: cuda > mps > cpu
-  # Options: "cpu", "cuda", "mps", or null for auto-detection
-
 # MogFace Detector Configuration
 mogface:
   # Inference thresholds

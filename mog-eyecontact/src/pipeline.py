@@ -1,6 +1,6 @@
 from pathlib import Path
 import numpy as np
-
+import torch
 from src.models.mogface import MogFaceDetector
 from src.models.eye_contact_cnn import EyeContactEstimator
 from src.config import Config
@@ -15,10 +15,9 @@ class EyeContactPipeline:
     """
     Pipeline for eye contact detection.
     """
-    def __init__(self, config: Config, device: str=None):
+    def __init__(self, config: Config, device: torch.device=torch.device("cuda")):
         self.config = config # configuration object
-        device_cfg = config.section("device").get("default") if device is None else device
-        self.device = select_device(device_cfg) # device to use for inference
+        self.device = device  # device to use for inference
         self.detector = MogFaceDetector(
             model_path=str(config.path("mogface_weights")),
             config=config,
