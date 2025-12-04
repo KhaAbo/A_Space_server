@@ -24,6 +24,10 @@ MOGCNN_CONFIG = f"{MOGCNN_DIR}/config/config.yml"
 MAX_FILE_SIZE = 1024 * 1024 * 1024  # 1GB in bytes
 ALLOWED_FORMATS = [".mp4", ".mov", ".avi"]
 
+# Model settings
+DEFAULT_MODEL = "resnet50"
+SUPPORTED_MODELS = ["resnet18", "resnet50", "mobileone_s0"]
+
 # Cleanup settings
 CLEANUP_INTERVAL_HOURS = 1
 FILE_RETENTION_HOURS = 24

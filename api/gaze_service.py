@@ -80,11 +80,31 @@ class GazeEstimationService:
         self.config = get_config()
         self.pipeline = GazeEstimationPipeline(self.config) # todo: adjust this to both fit MobileGaze and EyeContactCNN
 
-    def load_face_detector(self, model_name: FaceDetectorModel) -> FaceDetector:
-        """Load the face detector model (backward compatibility).
+        Args:
+            config: Optional configuration. Uses default if None.
+        """
+        self.config = config or get_config()
+        self.pipeline = GazeEstimationPipeline(self.config)
+
+        # Expose device for compatibility
+        self.device = self.pipeline.device
+
+    @property
+    def gaze_detector(self):
+        """Expose gaze detector for backward compatibility."""
+        return self.pipeline.gaze_detector
+
+    @property
+    def face_detector(self):
+        """Expose face detector for backward compatibility."""
+        return self.pipeline.face_detector
+
+    def load_model(self, model_name: str, weight_path: str) -> None:
+        """Load the gaze estimation model.
 
         Args:
             model_name: Name of the model architecture.
+            weight_path: Path to model weights.
         """
         match model_name:
             case FaceDetectorModel.MogFace:
@@ -142,6 +162,8 @@ class GazeEstimationService:
         gaze_model_name: GazeDetectorModel,
         input_path: str,
         output_path: str,
+        model_name: str,
+        weight_path: str,
         progress_callback: Callable[[int, int], None] | None = None,
     ) -> None:
         """Process video file for gaze estimation.
@@ -149,6 +171,8 @@ class GazeEstimationService:
         Args:
             input_path: Path to input video.
             output_path: Path to save processed video.
+            model_name: Name of the model to use.
+            weight_path: Path to model weights.
             progress_callback: Optional callback(total_frames, processed_frames).
             face_model_name: Name of face detector model.
             gaze_model_name: Name of gaze detector model.
