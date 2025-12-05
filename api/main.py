@@ -1,5 +1,6 @@
 import uuid
 import asyncio
+import json
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -32,6 +33,9 @@ from api.config import (
     ensure_directories,
     CLEANUP_INTERVAL_HOURS,
 )
+
+# Codecs that OpenCV can reliably decode
+SUPPORTED_VIDEO_CODECS = {"h264", "hevc", "h265", "mpeg4", "mjpeg", "vp8", "vp9", "prores"}
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -84,6 +88,107 @@ async def periodic_cleanup():
             print(f"Periodic cleanup: removed {cleaned} old jobs")
 
 
+async def get_video_codec(video_path: Path) -> str | None:
+    """
+    Get the video codec of a file using ffprobe.
+    
+    Returns:
+        Lowercase codec name (e.g., 'h264', 'av1', 'hevc') or None if unable to determine.
+    """
+    try:
+        cmd = [
+            "ffprobe",
+            "-v", "quiet",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=codec_name",
+            "-of", "json",
+            str(video_path),
+        ]
+        
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        
+        stdout, _ = await proc.communicate()
+        
+        if proc.returncode == 0:
+            data = json.loads(stdout.decode())
+            streams = data.get("streams", [])
+            if streams:
+                codec = streams[0].get("codec_name", "").lower()
+                print(f"Detected video codec: {codec}")
+                return codec
+    except Exception as e:
+        print(f"Warning: Could not detect video codec: {e}")
+    
+    return None
+
+
+async def transcode_to_h264(input_path: Path) -> Path:
+    """
+    Transcode a video to H.264 codec for compatibility.
+    
+    Creates a new file with '_h264' suffix and returns the path.
+    If transcoding fails, raises an exception.
+    """
+    output_path = input_path.with_stem(input_path.stem + "_h264").with_suffix(".mp4")
+    
+    print(f"Transcoding video to H.264: {input_path} -> {output_path}")
+    
+    cmd = [
+        "ffmpeg",
+        "-i", str(input_path),
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "18",  # High quality for processing
+        "-c:a", "aac",
+        "-y",  # Overwrite output file
+        str(output_path),
+    ]
+    
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    
+    _, stderr = await proc.communicate()
+    
+    if proc.returncode != 0:
+        error_msg = stderr.decode()
+        raise RuntimeError(f"Failed to transcode video: {error_msg}")
+    
+    print(f"Successfully transcoded video to H.264")
+    return output_path
+
+
+async def ensure_compatible_video(video_path: Path) -> Path:
+    """
+    Ensure the video uses a codec that OpenCV can decode.
+    
+    If the video uses an unsupported codec (like AV1), it will be transcoded to H.264.
+    
+    Returns:
+        Path to the compatible video file (may be the original or a transcoded version).
+    """
+    codec = await get_video_codec(video_path)
+    
+    if codec is None:
+        # Unable to detect codec, try to use the video as-is
+        print("Warning: Could not detect video codec, attempting to use video as-is")
+        return video_path
+    
+    if codec in SUPPORTED_VIDEO_CODECS:
+        print(f"Video codec '{codec}' is supported, no transcoding needed")
+        return video_path
+    
+    # Unsupported codec (e.g., av1), needs transcoding
+    print(f"Video codec '{codec}' is not supported by OpenCV, transcoding to H.264...")
+    return await transcode_to_h264(video_path)
+
+
 async def process_video_background(
     job_id: str,
     input_path: Path,
@@ -95,6 +200,9 @@ async def process_video_background(
         try:
             # Update status to processing
             job_manager.update_job_status(job_id, JobStatus.PROCESSING)
+
+            # Ensure video uses a compatible codec (transcode if needed)
+            compatible_video_path = await ensure_compatible_video(input_path)
 
             # Setup paths
             output_dir = OUTPUTS_DIR / job_id
@@ -114,7 +222,7 @@ async def process_video_background(
                 gaze_service.process_video,
                 face_model,
                 gaze_model,
-                str(input_path),
+                str(compatible_video_path),
                 str(output_path),
                 "unused_model_name",
                 "unused_weight_path",
