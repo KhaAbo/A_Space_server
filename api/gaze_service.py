@@ -92,12 +92,11 @@ class GazeEstimationService:
         """Expose face detector for backward compatibility."""
         return self.pipeline.face_detector
 
-    def load_model(self, model_name: str, weight_path: str) -> None:
-        """Load the gaze estimation model.
+    def load_face_detector(self, model_name: FaceDetectorModel) -> FaceDetector:
+        """Load the face detector model.
 
         Args:
             model_name: Name of the model architecture.
-            weight_path: Path to model weights.
         """
         match model_name:
             case FaceDetectorModel.MogFace:
@@ -110,7 +109,7 @@ class GazeEstimationService:
                     config=config,
                     device=self.device)
 
-                return MogFaceAdapter(detector) # wrapper to match this pipeline interface
+                return MogFaceAdapter(detector)
             
             case FaceDetectorModel.RetinaFace:
                 logging.info("Loading RetinaFaceDetector")
