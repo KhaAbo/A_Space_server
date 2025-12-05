@@ -402,6 +402,50 @@ async def add_faststart_to_video(video_path: Path):
         if temp_path.exists():
             temp_path.unlink()
 
+@app.get("/api/play_original/{job_id}")
+async def original_video_stream(job_id: str):
+    """
+    Stream the original uploaded video file with proper range request support for HTML5 video players.
+    Uses FileResponse which automatically handles HTTP range requests correctly.
+    Serves the original video from the uploads directory.
+    """
+    job = job_manager.get_job(job_id)
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Find the original video file (could be .mp4, .mov, .avi)
+    upload_dir = UPLOADS_DIR / job_id
+    if not upload_dir.exists():
+        raise HTTPException(status_code=404, detail="Original video not found")
+    
+    # Look for original video with any allowed extension
+    video_path = None
+    for ext in ALLOWED_FORMATS:
+        potential_path = upload_dir / f"original{ext}"
+        if potential_path.exists():
+            video_path = potential_path
+            break
+    
+    if not video_path:
+        raise HTTPException(status_code=404, detail="Original video not found")
+    
+    # Determine media type based on extension
+    media_types = {
+        ".mp4": "video/mp4",
+        ".mov": "video/quicktime",
+        ".avi": "video/x-msvideo",
+    }
+    media_type = media_types.get(video_path.suffix.lower(), "video/mp4")
+    
+    return FileResponse(
+        path=str(video_path),
+        media_type=media_type,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "public, max-age=3600",
+        },
+    )
 
 @app.get("/api/play_video/{job_id}")
 async def video_stream(job_id: str):
