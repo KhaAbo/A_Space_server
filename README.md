@@ -36,10 +36,14 @@ uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 | Endpoint                          | Description                     |
 | --------------------------------- | ------------------------------- |
 | `POST /api/upload`                | Upload video (returns `job_id`) |
+| `GET /api/jobs/all`               | Get All Jobs                    |
 | `GET /api/jobs/{job_id}`          | Check status & progress         |
+| `DELETE /api/jobs/{job_id}`       | Delete Job                      |
 | `GET /api/download/{job_id}`      | Download processed video        |
 | `GET /api/download-data/{job_id}` | Download gaze data JSON         |
-| `DELETE /api/jobs/{job_id}`       | Delete job and files            |
+| `GET /api/play_original/{job_id}` | Original Video Stream           |
+| `GET /api/play_video/{job_id}`    | Stream processed Video          |
+| `GET /api/progress`               | Video processing progress       |
 | `GET /api/health`                 | Health check                    |
 
 See [API_README.md](API_README.md) for full documentation.
